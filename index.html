@@ -1182,9 +1182,30 @@ async function handleLogin() {
 
   if (ENABLE_BOOTSTRAP_ADMIN && email === BOOTSTRAP_ADMIN_EMAIL && pass === BOOTSTRAP_ADMIN_PASSWORD) {
     initSB();
-    currentUser = { email: BOOTSTRAP_ADMIN_EMAIL, role: 'administrator', name: 'Bootstrap Admin', cadet_id: null, uid: 'bootstrap-admin' };
+    let authResult = await sbClient.auth.signInWithPassword({ email, password: pass });
+    if (authResult.error) {
+      const signUpResult = await sbClient.auth.signUp({
+        email, password: pass,
+        options: { data: { name: 'Bootstrap Admin', role: 'administrator', cadet_id: null } }
+      });
+      if (signUpResult.error && !signUpResult.data?.user) {
+        showAuthError('l-err', 'Bootstrap admin setup failed: ' + signUpResult.error.message);
+        btn.textContent = 'Sign In to Portal'; btn.disabled = false;
+        return;
+      }
+      authResult = await sbClient.auth.signInWithPassword({ email, password: pass });
+      if (authResult.error) {
+        showAuthError('l-err', 'Bootstrap admin sign in failed: ' + authResult.error.message);
+        btn.textContent = 'Sign In to Portal'; btn.disabled = false;
+        return;
+      }
+    }
+
+    const user = authResult.data.user;
+    const meta = user.user_metadata || {};
+    currentUser = { email: user.email, role: 'administrator', name: meta.name || 'Bootstrap Admin', cadet_id: meta.cadet_id || null, uid: user.id };
     sessionStorage.setItem('smc_user', JSON.stringify(currentUser));
-    showToast('Temporary admin login active. Create a real admin account now and remove this fallback.', 'success', 6000);
+    showToast('Bootstrap admin signed in. Create a real admin account now and remove this fallback.', 'success', 6000);
     enterApp();
     btn.textContent = 'Sign In to Portal'; btn.disabled = false;
     return;
@@ -1879,13 +1900,32 @@ async function saveUser() {
       options: { data: { name, role, cadet_id: cadetId || null } }
     });
     if (error) { showToast('Error: ' + error.message, 'error', 6000); return; }
+
+    let authUser = data?.user;
+    if (!data?.session && authUser) {
+      const signIn = await sbClient.auth.signInWithPassword({ email, password: pass });
+      if (signIn.error) {
+        showToast('Created auth user but could not sign in. Check Supabase email confirmation settings.', 'error', 8000);
+        return;
+      }
+      authUser = signIn.data.user;
+    }
+    if (!authUser?.id) {
+      showToast('Auth user created, but no valid session was available to save the profile.', 'error', 8000);
+      return;
+    }
+
     /* Also insert into user_profiles for easy query */
-    await sbClient.from('user_profiles').insert([{
-      uid: data?.user?.id, name, email, role,
+    const profileInsert = await sbClient.from('user_profiles').insert([{
+      uid: authUser.id, name, email, role,
       cadet_id: cadetId || null,
       created: new Date().toISOString().split('T')[0]
     }]);
-    cacheInvalidate('user_profiles');
+    if (profileInsert.error) {
+      showToast('User created but profile save failed: ' + profileInsert.error.message, 'error', 6000);
+    } else {
+      cacheInvalidate('user_profiles');
+    }
   } else {
     DEMO_USERS.push({ id: 'u' + Date.now(), name, email, role, cadet_id: cadetId || null, created: new Date().toISOString().split('T')[0] });
   }
