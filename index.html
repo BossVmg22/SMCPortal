@@ -1274,6 +1274,7 @@ async function checkSession() {
       name: meta.name || session.user.email.split('@')[0],
       cadet_id: meta.cadet_id || null, uid: session.user.id };
     sessionStorage.setItem('smc_user', JSON.stringify(currentUser));
+    await ensureUserProfile(currentUser);
     enterApp();
   } else {
     /* Try sessionStorage fallback */
@@ -1281,6 +1282,27 @@ async function checkSession() {
     if (stored) {
       try { currentUser = JSON.parse(stored); enterApp(); } catch(e) { sessionStorage.removeItem('smc_user'); }
     }
+  }
+}
+
+async function ensureUserProfile(user) {
+  if (IS_DEMO || !sbClient || !user?.uid) return;
+  try {
+    const { data, error } = await sbClient.from('user_profiles').select('id').eq('uid', user.uid).limit(1);
+    if (error) { return; }
+    if (!Array.isArray(data) || data.length === 0) {
+      await sbClient.from('user_profiles').insert([{
+        uid: user.uid,
+        name: user.name || user.email.split('@')[0],
+        email: user.email,
+        role: user.role || 'cadet',
+        cadet_id: user.cadet_id || null,
+        created: new Date().toISOString().split('T')[0]
+      }]);
+      cacheInvalidate('user_profiles');
+    }
+  } catch(e) {
+    console.warn('Could not ensure user profile', e);
   }
 }
 
@@ -1901,17 +1923,16 @@ async function saveUser() {
     });
     if (error) { showToast('Error: ' + error.message, 'error', 6000); return; }
 
-    let authUser = data?.user;
-    if (!data?.session && authUser) {
-      const signIn = await sbClient.auth.signInWithPassword({ email, password: pass });
-      if (signIn.error) {
-        showToast('Created auth user but could not sign in. Check Supabase email confirmation settings.', 'error', 8000);
-        return;
-      }
-      authUser = signIn.data.user;
+    if (!data?.session) {
+      showToast('Auth user created. Verify your email before first login.', 'success', 8000);
+      closeModal('user-modal');
+      loadUsers();
+      return;
     }
+
+    const authUser = data.session.user || data.user;
     if (!authUser?.id) {
-      showToast('Auth user created, but no valid session was available to save the profile.', 'error', 8000);
+      showToast('Auth user created, but no valid session was returned.', 'error', 8000);
       return;
     }
 
