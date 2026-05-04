@@ -1093,6 +1093,9 @@ const SUPABASE_URL  = 'https://eglfvisxzfdqnasypwtv.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVnbGZ2aXN4emZkcW5hc3lwd3R2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4MTc0MTEsImV4cCI6MjA5MzM5MzQxMX0.59GGn05-bHC_0tstWNLs_-Vsdy-y58f_zcoMi5q7vUw';
 
 const IS_DEMO = SUPABASE_URL.includes('YOUR_PROJECT') || SUPABASE_ANON.includes('YOUR_ANON');
+const ENABLE_BOOTSTRAP_ADMIN = true; // temporary: remove after creating a real admin user
+const BOOTSTRAP_ADMIN_EMAIL = 'bootstrap@smc.local';
+const BOOTSTRAP_ADMIN_PASSWORD = 'Admin123!';
 let sbClient = null;
 let currentUser = null;
 let editingViolId = null;
@@ -1176,6 +1179,16 @@ async function handleLogin() {
   if (!email || !pass) { showAuthError('l-err', 'Please enter email and password.'); return; }
   btn.textContent = 'Signing in…'; btn.disabled = true;
   err.classList.remove('show');
+
+  if (ENABLE_BOOTSTRAP_ADMIN && email === BOOTSTRAP_ADMIN_EMAIL && pass === BOOTSTRAP_ADMIN_PASSWORD) {
+    initSB();
+    currentUser = { email: BOOTSTRAP_ADMIN_EMAIL, role: 'administrator', name: 'Bootstrap Admin', cadet_id: null, uid: 'bootstrap-admin' };
+    sessionStorage.setItem('smc_user', JSON.stringify(currentUser));
+    showToast('Temporary admin login active. Create a real admin account now and remove this fallback.', 'success', 6000);
+    enterApp();
+    btn.textContent = 'Sign In to Portal'; btn.disabled = false;
+    return;
+  }
 
   if (IS_DEMO) {
     /* Demo mode: assign role by email domain hint */
