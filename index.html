@@ -1,916 +1,413 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SMC Portal — Records & Grading System</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>SMC Portal — Records & Grading System</title>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --navy:#0b1829;--navy-mid:#132238;--navy-light:#1c3254;
+  --gold:#c9a84c;--gold-dim:#9b7e38;
+  --slate:#8fa3bb;--muted:#4a6280;--white:#fff;
+  --danger:#c0392b;--success:#1e7e34;
+  --border:rgba(201,168,76,.18);--sidebar-w:258px;
+  --radius:6px;--t:.2s ease;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'IBM Plex Sans',sans-serif;background:var(--navy);color:var(--white);min-height:100vh;overflow-x:hidden}
 
-  <style>
-    /* ── DESIGN TOKENS ── */
-    :root {
-      --navy:       #0b1829;
-      --navy-mid:   #132238;
-      --navy-light: #1c3254;
-      --gold:       #c9a84c;
-      --gold-dim:   #9b7e38;
-      --gold-pale:  #f0dea0;
-      --cream:      #f5f0e8;
-      --slate:      #8fa3bb;
-      --muted:      #4a6280;
-      --white:      #ffffff;
-      --danger:     #c0392b;
-      --success:    #1e7e34;
-      --warn:       #b8860b;
-      --border:     rgba(201,168,76,0.18);
-      --card-bg:    rgba(255,255,255,0.035);
-      --sidebar-w:  260px;
-      --radius:     6px;
-      --transition: 0.2s ease;
-    }
+/* ── PRINT ── */
+@media print{
+  .sidebar,.topbar,.no-print{display:none!important}
+  .main{margin-left:0!important}
+  .page{display:block!important}
+  body{background:#fff;color:#000}
+  .panel{border:1px solid #ccc}
+  thead th{background:#f5f5f5;color:#333}
+  tbody td{color:#222}
+  .badge{border:1px solid #999;color:#333!important;background:transparent!important}
+}
 
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* ── AUTH SCREENS ── */
+.auth-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(ellipse 80% 60% at 20% 80%,rgba(201,168,76,.08) 0%,transparent 60%),
+  linear-gradient(160deg,#06101e 0%,#0b1829 50%,#0f2040 100%);position:relative}
+.auth-screen::before{content:'';position:absolute;inset:0;
+  background-image:repeating-linear-gradient(0deg,transparent,transparent 59px,rgba(201,168,76,.04) 60px),
+  repeating-linear-gradient(90deg,transparent,transparent 59px,rgba(201,168,76,.04) 60px);pointer-events:none}
 
-    body {
-      font-family: 'IBM Plex Sans', sans-serif;
-      background: var(--navy);
-      color: var(--white);
-      min-height: 100vh;
-      overflow-x: hidden;
-    }
+.auth-card{position:relative;width:420px;background:rgba(19,34,56,.96);border:1px solid var(--border);
+  border-radius:10px;padding:44px;box-shadow:0 32px 80px rgba(0,0,0,.6);animation:fadeUp .5s ease both}
+.auth-crest{display:flex;align-items:center;gap:14px;margin-bottom:28px}
+.crest-icon{width:50px;height:50px;background:linear-gradient(135deg,var(--gold),var(--gold-dim));
+  border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;
+  box-shadow:0 4px 16px rgba(201,168,76,.3);flex-shrink:0}
+.crest-name{font-family:'Libre Baskerville',serif;font-size:14px;font-weight:700;letter-spacing:.04em}
+.crest-sub{font-size:10px;color:var(--slate);text-transform:uppercase;letter-spacing:.1em}
+.auth-divider{height:1px;background:var(--border);margin:0 0 24px}
+.auth-title{font-family:'Libre Baskerville',serif;font-size:20px;margin-bottom:4px}
+.auth-sub{font-size:12px;color:var(--slate);margin-bottom:24px}
 
-    /* ══════════════════════════════════════
-       LOGIN PAGE
-    ══════════════════════════════════════ */
-    #login-screen {
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background:
-        radial-gradient(ellipse 80% 60% at 20% 80%, rgba(201,168,76,0.08) 0%, transparent 60%),
-        radial-gradient(ellipse 60% 50% at 80% 10%, rgba(28,50,84,0.6) 0%, transparent 60%),
-        linear-gradient(160deg, #06101e 0%, #0b1829 50%, #0f2040 100%);
-      position: relative;
-    }
+.field{margin-bottom:16px}
+.field label{display:block;font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--slate);margin-bottom:7px}
+.field input,.field select{width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(143,163,187,.2);
+  border-radius:var(--radius);padding:10px 13px;color:var(--white);
+  font-family:'IBM Plex Sans',sans-serif;font-size:13.5px;outline:none;
+  transition:border-color var(--t),box-shadow var(--t)}
+.field input:focus,.field select:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,168,76,.1)}
+.field select option{background:var(--navy-mid)}
 
-    #login-screen::before {
-      content: '';
-      position: absolute; inset: 0;
-      background-image:
-        repeating-linear-gradient(0deg, transparent, transparent 59px, rgba(201,168,76,0.04) 60px),
-        repeating-linear-gradient(90deg, transparent, transparent 59px, rgba(201,168,76,0.04) 60px);
-      pointer-events: none;
-    }
+.btn-primary{width:100%;background:linear-gradient(135deg,var(--gold),#a8862e);border:none;
+  border-radius:var(--radius);padding:12px;color:var(--navy);font-family:'IBM Plex Sans',sans-serif;
+  font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
+  transition:opacity var(--t),transform var(--t),box-shadow var(--t);margin-top:6px;
+  box-shadow:0 4px 20px rgba(201,168,76,.25)}
+.btn-primary:hover{opacity:.9;transform:translateY(-1px);box-shadow:0 8px 28px rgba(201,168,76,.35)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none}
 
-    .login-card {
-      position: relative;
-      width: 420px;
-      background: rgba(19,34,56,0.95);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 48px 44px;
-      box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,168,76,0.05);
-      animation: fadeUp 0.6s ease both;
-    }
+.auth-link{text-align:center;margin-top:16px;font-size:12px;color:var(--slate)}
+.auth-link a{color:var(--gold);cursor:pointer;text-decoration:none}
+.auth-link a:hover{text-decoration:underline}
 
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(24px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
+.auth-error{display:none;background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.4);
+  border-radius:var(--radius);padding:10px 13px;font-size:12px;color:#e74c3c;margin-top:12px}
+.auth-error.show{display:block}
+.auth-success{display:none;background:rgba(30,126,52,.15);border:1px solid rgba(30,126,52,.4);
+  border-radius:var(--radius);padding:10px 13px;font-size:12px;color:#2ecc71;margin-top:12px}
+.auth-success.show{display:block}
 
-    .login-crest {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      margin-bottom: 32px;
-    }
+/* ── APP SHELL ── */
+#app{display:none;min-height:100vh}
+#app.active{display:flex}
 
-    .crest-icon {
-      width: 52px; height: 52px;
-      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dim) 100%);
-      border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 22px;
-      box-shadow: 0 4px 16px rgba(201,168,76,0.3);
-      flex-shrink: 0;
-    }
+/* SIDEBAR */
+.sidebar{width:var(--sidebar-w);background:var(--navy-mid);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100;overflow-y:auto}
+.sidebar-header{padding:20px 18px 16px;border-bottom:1px solid var(--border)}
+.sidebar-brand{display:flex;align-items:center;gap:11px}
+.brand-icon{width:38px;height:38px;background:linear-gradient(135deg,var(--gold),var(--gold-dim));
+  border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.brand-text{font-family:'Libre Baskerville',serif;font-size:13px;font-weight:700;line-height:1.25}
+.brand-sub{font-size:10px;color:var(--slate);text-transform:uppercase;letter-spacing:.08em}
 
-    .crest-text h1 {
-      font-family: 'Libre Baskerville', serif;
-      font-size: 15px;
-      font-weight: 700;
-      color: var(--white);
-      letter-spacing: 0.04em;
-      line-height: 1.2;
-    }
-    .crest-text p {
-      font-size: 11px;
-      color: var(--slate);
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
+.nav-section{padding:14px 10px 6px}
+.nav-label{font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--muted);padding:0 8px;margin-bottom:4px}
+.nav-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:var(--radius);
+  cursor:pointer;font-size:13px;color:var(--slate);margin-bottom:1px;user-select:none;
+  transition:background var(--t),color var(--t)}
+.nav-item .ni{font-size:15px;width:20px;text-align:center;flex-shrink:0}
+.nav-item:hover{background:rgba(255,255,255,.05);color:var(--white)}
+.nav-item.active{background:rgba(201,168,76,.12);color:var(--gold);font-weight:500}
+.nav-item[data-role-hide]{display:none}
 
-    .login-divider {
-      height: 1px;
-      background: var(--border);
-      margin-bottom: 28px;
-    }
+.sidebar-footer{margin-top:auto;padding:14px 10px;border-top:1px solid var(--border)}
+.user-chip{display:flex;align-items:center;gap:9px;padding:9px 10px;
+  background:rgba(255,255,255,.04);border-radius:var(--radius);margin-bottom:4px}
+.user-avatar{width:30px;height:30px;background:linear-gradient(135deg,var(--gold),var(--gold-dim));
+  border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:700;color:var(--navy);flex-shrink:0}
+.user-info-name{font-size:12.5px;font-weight:500}
+.user-info-role{font-size:10px;color:var(--slate)}
+.role-pill{display:inline-block;padding:1px 7px;border-radius:10px;font-size:9px;font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase;margin-top:2px}
+.role-admin{background:rgba(201,168,76,.2);color:var(--gold)}
+.role-registrar{background:rgba(41,128,185,.2);color:#5dade2}
+.role-instructor{background:rgba(142,68,173,.2);color:#bb8fce}
+.role-cadet{background:rgba(30,126,52,.2);color:#2ecc71}
 
-    .login-title {
-      font-family: 'Libre Baskerville', serif;
-      font-size: 22px;
-      color: var(--white);
-      margin-bottom: 6px;
-    }
-    .login-sub {
-      font-size: 13px;
-      color: var(--slate);
-      margin-bottom: 28px;
-    }
+.logout-btn{display:flex;align-items:center;gap:7px;padding:7px 10px;border:none;background:none;
+  color:var(--muted);font-size:12px;font-family:'IBM Plex Sans',sans-serif;cursor:pointer;
+  width:100%;border-radius:var(--radius);transition:color var(--t),background var(--t)}
+.logout-btn:hover{color:#e74c3c;background:rgba(192,57,43,.1)}
 
-    .field { margin-bottom: 18px; }
-    .field label {
-      display: block;
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--slate);
-      margin-bottom: 8px;
-    }
-    .field input {
-      width: 100%;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(143,163,187,0.2);
-      border-radius: var(--radius);
-      padding: 11px 14px;
-      color: var(--white);
-      font-family: 'IBM Plex Sans', sans-serif;
-      font-size: 14px;
-      transition: border-color var(--transition), box-shadow var(--transition);
-      outline: none;
-    }
-    .field input:focus {
-      border-color: var(--gold);
-      box-shadow: 0 0 0 3px rgba(201,168,76,0.12);
-    }
+/* MAIN */
+.main{margin-left:var(--sidebar-w);flex:1;display:flex;flex-direction:column;min-height:100vh}
+.topbar{height:56px;background:rgba(11,24,41,.96);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;padding:0 26px;
+  position:sticky;top:0;z-index:50;backdrop-filter:blur(8px)}
+.breadcrumb{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--slate)}
+.breadcrumb .sep{color:var(--muted)}
+.breadcrumb .cur{color:var(--white);font-weight:500}
+.topbar-right{display:flex;align-items:center;gap:14px}
+.status-pill{display:flex;align-items:center;gap:5px;font-size:11.5px;color:#2ecc71;font-weight:500}
+.status-dot{width:7px;height:7px;background:#2ecc71;border-radius:50%;
+  box-shadow:0 0 6px rgba(46,204,113,.6);animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 
-    .field select {
-      width: 100%;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(143,163,187,0.2);
-      border-radius: var(--radius);
-      padding: 11px 14px;
-      color: var(--white);
-      font-family: 'IBM Plex Sans', sans-serif;
-      font-size: 14px;
-      outline: none;
-      cursor: pointer;
-    }
-    .field select option { background: var(--navy-mid); }
+/* CONTENT */
+.content{padding:28px 26px;flex:1}
+.page{display:none;animation:fadeIn .25s ease both}
+.page.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
 
-    .btn-primary {
-      width: 100%;
-      background: linear-gradient(135deg, var(--gold) 0%, #a8862e 100%);
-      border: none;
-      border-radius: var(--radius);
-      padding: 13px;
-      color: var(--navy);
-      font-family: 'IBM Plex Sans', sans-serif;
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      cursor: pointer;
-      transition: opacity var(--transition), transform var(--transition), box-shadow var(--transition);
-      margin-top: 8px;
-      box-shadow: 0 4px 20px rgba(201,168,76,0.25);
-    }
-    .btn-primary:hover {
-      opacity: 0.9;
-      transform: translateY(-1px);
-      box-shadow: 0 8px 28px rgba(201,168,76,0.35);
-    }
-    .btn-primary:active { transform: translateY(0); }
+/* HERO */
+.hero-banner{background:linear-gradient(135deg,var(--navy-light) 0%,#0f2545 60%,#1a3a6b 100%);
+  border:1px solid var(--border);border-radius:10px;padding:26px 30px;
+  display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;
+  position:relative;overflow:hidden}
+.hero-banner::before{content:'🎖';position:absolute;right:100px;top:50%;
+  transform:translateY(-50%);font-size:110px;opacity:.05;pointer-events:none}
+.hero-label{font-size:9.5px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--gold);margin-bottom:5px}
+.hero-title{font-family:'Libre Baskerville',serif;font-size:24px;font-weight:700;margin-bottom:7px}
+.hero-desc{font-size:12.5px;color:var(--slate);max-width:460px;line-height:1.6}
+.hero-stats{display:flex;gap:16px;flex-shrink:0}
+.hero-stat{text-align:center;background:rgba(255,255,255,.07);border:1px solid rgba(201,168,76,.15);
+  border-radius:8px;padding:14px 20px;min-width:82px}
+.hero-stat-num{font-family:'IBM Plex Mono',monospace;font-size:24px;font-weight:500;color:var(--gold);line-height:1}
+.hero-stat-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--slate);margin-top:5px}
 
-    .login-error {
-      display: none;
-      background: rgba(192,57,43,0.15);
-      border: 1px solid rgba(192,57,43,0.4);
-      border-radius: var(--radius);
-      padding: 10px 14px;
-      font-size: 13px;
-      color: #e74c3c;
-      margin-top: 14px;
-    }
-    .login-error.show { display: block; }
+/* SECTION TITLE */
+.sec-title{font-size:10.5px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:14px}
 
-    .login-footer {
-      text-align: center;
-      margin-top: 24px;
-      font-size: 11px;
-      color: var(--muted);
-    }
+/* CARDS GRID */
+.cards-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.op-card{background:rgba(255,255,255,.03);border:1px solid rgba(143,163,187,.1);border-radius:8px;
+  padding:20px;cursor:pointer;transition:border-color var(--t),background var(--t),transform var(--t),box-shadow var(--t)}
+.op-card:hover{background:rgba(201,168,76,.06);border-color:rgba(201,168,76,.28);
+  transform:translateY(-2px);box-shadow:0 8px 30px rgba(0,0,0,.28)}
+.op-card-icon{width:40px;height:40px;border-radius:8px;display:flex;align-items:center;
+  justify-content:center;font-size:19px;margin-bottom:12px}
+.op-card-title{font-size:13.5px;font-weight:600;margin-bottom:5px}
+.op-card-desc{font-size:11.5px;color:var(--slate);line-height:1.5}
+.ic-blue{background:rgba(41,128,185,.2)}.ic-gold{background:rgba(201,168,76,.15)}
+.ic-green{background:rgba(30,126,52,.2)}.ic-red{background:rgba(192,57,43,.2)}
+.ic-purple{background:rgba(142,68,173,.2)}.ic-teal{background:rgba(22,160,133,.2)}
+.ic-orange{background:rgba(230,126,34,.2)}.ic-gray{background:rgba(143,163,187,.1)}
 
-    /* ══════════════════════════════════════
-       APP SHELL (hidden until logged in)
-    ══════════════════════════════════════ */
-    #app {
-      display: none;
-      min-height: 100vh;
-    }
-    #app.active { display: flex; }
+/* STATS ROW */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}
+.stat-card{background:rgba(255,255,255,.03);border:1px solid rgba(143,163,187,.1);
+  border-radius:8px;padding:16px 18px}
+.stat-card-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:7px}
+.stat-card-val{font-family:'IBM Plex Mono',monospace;font-size:26px;color:var(--white);font-weight:500}
+.stat-card-sub{font-size:11px;color:var(--slate);margin-top:3px}
 
-    /* SIDEBAR */
-    .sidebar {
-      width: var(--sidebar-w);
-      background: var(--navy-mid);
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      position: fixed;
-      top: 0; left: 0;
-      height: 100vh;
-      z-index: 100;
-      overflow-y: auto;
-    }
+/* PANEL */
+.panel{background:rgba(19,34,56,.7);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.panel+.panel{margin-top:16px}
+.panel-header{display:flex;align-items:center;justify-content:space-between;
+  padding:16px 20px;border-bottom:1px solid var(--border)}
+.panel-title{font-size:13.5px;font-weight:600}
+.panel-sub{font-size:11.5px;color:var(--slate);margin-top:2px}
+.panel-actions{display:flex;align-items:center;gap:8px}
 
-    .sidebar-header {
-      padding: 22px 20px 18px;
-      border-bottom: 1px solid var(--border);
-    }
-    .sidebar-brand {
-      display: flex; align-items: center; gap: 12px;
-    }
-    .brand-icon {
-      width: 40px; height: 40px;
-      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dim) 100%);
-      border-radius: 6px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 18px;
-      box-shadow: 0 2px 12px rgba(201,168,76,0.25);
-      flex-shrink: 0;
-    }
-    .brand-text {
-      font-family: 'Libre Baskerville', serif;
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--white);
-      line-height: 1.3;
-    }
-    .brand-sub {
-      font-size: 10px;
-      color: var(--slate);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
+.search-bar input{background:rgba(255,255,255,.04);border:1px solid rgba(143,163,187,.2);
+  border-radius:var(--radius);padding:7px 13px;color:var(--white);font-size:12.5px;
+  font-family:'IBM Plex Sans',sans-serif;outline:none;width:200px;transition:border-color var(--t)}
+.search-bar input:focus{border-color:var(--gold)}
+.search-bar input::placeholder{color:var(--muted)}
 
-    .sidebar-section {
-      padding: 18px 12px 8px;
-    }
-    .sidebar-section-label {
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: var(--muted);
-      padding: 0 8px;
-      margin-bottom: 6px;
-    }
+/* BUTTONS */
+.btn{padding:7px 15px;border-radius:var(--radius);font-size:12px;font-weight:600;
+  font-family:'IBM Plex Sans',sans-serif;cursor:pointer;border:none;
+  transition:opacity var(--t),box-shadow var(--t),transform var(--t);letter-spacing:.03em}
+.btn:hover{opacity:.88}
+.btn:active{transform:scale(.98)}
+.btn-gold{background:linear-gradient(135deg,var(--gold),var(--gold-dim));color:var(--navy);
+  box-shadow:0 2px 10px rgba(201,168,76,.2)}
+.btn-gold:hover{box-shadow:0 4px 16px rgba(201,168,76,.35)}
+.btn-outline{background:transparent;border:1px solid rgba(143,163,187,.2)!important;color:var(--slate)}
+.btn-outline:hover{border-color:rgba(201,168,76,.3)!important;color:var(--white)}
+.btn-danger{background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3)!important;color:#e74c3c}
+.btn-danger:hover{background:rgba(192,57,43,.25)}
+.btn-success{background:rgba(30,126,52,.2);border:1px solid rgba(30,126,52,.3)!important;color:#2ecc71}
 
-    .nav-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 9px 12px;
-      border-radius: var(--radius);
-      cursor: pointer;
-      transition: background var(--transition), color var(--transition);
-      font-size: 13.5px;
-      color: var(--slate);
-      font-weight: 400;
-      margin-bottom: 2px;
-      user-select: none;
-    }
-    .nav-item .nav-icon { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
-    .nav-item:hover { background: rgba(255,255,255,0.05); color: var(--white); }
-    .nav-item.active {
-      background: rgba(201,168,76,0.12);
-      color: var(--gold);
-      font-weight: 500;
-    }
-    .nav-item.active .nav-icon { filter: none; }
+/* TABLES */
+table{width:100%;border-collapse:collapse}
+thead th{padding:10px 16px;text-align:left;font-size:10px;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--muted);background:rgba(255,255,255,.02);
+  border-bottom:1px solid var(--border)}
+tbody tr{border-bottom:1px solid rgba(143,163,187,.06);transition:background var(--t)}
+tbody tr:hover{background:rgba(201,168,76,.04)}
+tbody td{padding:11px 16px;font-size:12.5px;color:var(--white);vertical-align:middle}
+.td-mono{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--slate)}
+.td-actions{display:flex;gap:6px}
 
-    .sidebar-footer {
-      margin-top: auto;
-      padding: 16px 12px;
-      border-top: 1px solid var(--border);
-    }
-    .user-chip {
-      display: flex; align-items: center; gap: 10px;
-      padding: 10px 12px;
-      background: rgba(255,255,255,0.04);
-      border-radius: var(--radius);
-      cursor: pointer;
-    }
-    .user-avatar {
-      width: 32px; height: 32px;
-      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dim) 100%);
-      border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--navy);
-      flex-shrink: 0;
-    }
-    .user-name { font-size: 13px; font-weight: 500; color: var(--white); }
-    .user-role { font-size: 11px; color: var(--slate); }
-    .logout-btn {
-      display: flex; align-items: center; gap: 8px;
-      padding: 8px 12px;
-      border: none;
-      background: none;
-      color: var(--muted);
-      font-size: 12px;
-      font-family: 'IBM Plex Sans', sans-serif;
-      cursor: pointer;
-      width: 100%;
-      border-radius: var(--radius);
-      margin-top: 6px;
-      transition: color var(--transition), background var(--transition);
-    }
-    .logout-btn:hover { color: var(--danger); background: rgba(192,57,43,0.1); }
+/* BADGES */
+.badge{display:inline-flex;align-items:center;padding:2px 9px;border-radius:20px;
+  font-size:10.5px;font-weight:600;letter-spacing:.03em}
+.badge-green{background:rgba(30,126,52,.2);color:#2ecc71}
+.badge-gold{background:rgba(201,168,76,.15);color:var(--gold)}
+.badge-blue{background:rgba(41,128,185,.2);color:#5dade2}
+.badge-red{background:rgba(192,57,43,.2);color:#e74c3c}
+.badge-gray{background:rgba(143,163,187,.1);color:var(--slate)}
+.badge-purple{background:rgba(142,68,173,.2);color:#bb8fce}
+.badge-orange{background:rgba(230,126,34,.2);color:#f39c12}
 
-    /* MAIN AREA */
-    .main {
-      margin-left: var(--sidebar-w);
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      min-height: 100vh;
-    }
+/* GRADE COLORS */
+.grade-cell{font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:500}
+.grade-a{color:#2ecc71}.grade-b{color:#5dade2}.grade-c{color:var(--gold)}
+.grade-d{color:#e67e22}.grade-f{color:#e74c3c}
 
-    /* TOPBAR */
-    .topbar {
-      height: 58px;
-      background: rgba(11,24,41,0.95);
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 28px;
-      position: sticky;
-      top: 0;
-      z-index: 50;
-      backdrop-filter: blur(8px);
-    }
-    .breadcrumb {
-      display: flex; align-items: center; gap: 6px;
-      font-size: 13px;
-      color: var(--slate);
-    }
-    .breadcrumb .sep { color: var(--muted); }
-    .breadcrumb .current { color: var(--white); font-weight: 500; }
+/* GRADE FILTERS */
+.grade-filters{display:flex;gap:8px;padding:14px 20px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.filter-chip{padding:5px 13px;border-radius:20px;font-size:11.5px;font-weight:500;cursor:pointer;
+  border:1px solid rgba(143,163,187,.15);color:var(--slate);background:transparent;
+  font-family:'IBM Plex Sans',sans-serif;transition:all var(--t)}
+.filter-chip.active,.filter-chip:hover{background:rgba(201,168,76,.12);
+  border-color:rgba(201,168,76,.3);color:var(--gold)}
 
-    .topbar-right {
-      display: flex; align-items: center; gap: 16px;
-    }
-    .status-pill {
-      display: flex; align-items: center; gap: 6px;
-      font-size: 12px;
-      color: #2ecc71;
-      font-weight: 500;
-    }
-    .status-dot {
-      width: 8px; height: 8px;
-      background: #2ecc71;
-      border-radius: 50%;
-      box-shadow: 0 0 6px rgba(46,204,113,0.6);
-      animation: pulse 2s ease-in-out infinite;
-    }
-    @keyframes pulse {
-      0%,100% { opacity: 1; }
-      50% { opacity: 0.4; }
-    }
+/* FORMS */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-group{margin-bottom:0}
+.form-group label{display:block;font-size:10px;font-weight:600;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--slate);margin-bottom:7px}
+.form-group input,.form-group select,.form-group textarea{
+  width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(143,163,187,.2);
+  border-radius:var(--radius);padding:9px 13px;color:var(--white);
+  font-family:'IBM Plex Sans',sans-serif;font-size:13px;outline:none;
+  transition:border-color var(--t),box-shadow var(--t)}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{
+  border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,168,76,.1)}
+.form-group select option{background:var(--navy-mid)}
+.form-group textarea{resize:vertical;min-height:76px}
+.form-group input[readonly]{opacity:.6;cursor:default}
+.form-span-2{grid-column:span 2}
+.form-actions{display:flex;gap:8px;justify-content:flex-end;padding-top:6px}
+.form-body{padding:22px}
 
-    /* CONTENT */
-    .content {
-      padding: 32px 28px;
-      flex: 1;
-    }
+/* MODALS */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;
+  align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(4px)}
+.modal-overlay.open{display:flex}
+.modal{background:var(--navy-mid);border:1px solid var(--border);border-radius:10px;
+  width:520px;max-height:88vh;overflow-y:auto;animation:fadeUp .28s ease both}
+.modal.modal-sm{width:380px}
+.modal.modal-lg{width:680px}
+.modal-header{display:flex;align-items:center;justify-content:space-between;
+  padding:20px 24px;border-bottom:1px solid var(--border)}
+.modal-title{font-family:'Libre Baskerville',serif;font-size:16px}
+.modal-close{background:none;border:none;color:var(--slate);font-size:20px;
+  cursor:pointer;line-height:1;transition:color var(--t)}
+.modal-close:hover{color:var(--white)}
+.modal-body{padding:24px}
+.modal-footer{padding:16px 24px;border-top:1px solid var(--border);
+  display:flex;justify-content:flex-end;gap:8px}
 
-    /* PAGES */
-    .page { display: none; animation: fadeIn 0.3s ease both; }
-    .page.active { display: block; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+/* CONFIRM MODAL */
+.confirm-icon{font-size:40px;text-align:center;margin-bottom:14px}
+.confirm-msg{font-size:14px;color:var(--slate);text-align:center;line-height:1.6;margin-bottom:6px}
+.confirm-sub{font-size:12px;color:var(--muted);text-align:center}
 
-    /* ── HERO BANNER ── */
-    .hero-banner {
-      background: linear-gradient(135deg, var(--navy-light) 0%, #0f2545 60%, #1a3a6b 100%);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 28px 32px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 28px;
-      position: relative;
-      overflow: hidden;
-    }
-    .hero-banner::before {
-      content: '⚔';
-      position: absolute;
-      right: 120px;
-      top: 50%;
-      transform: translateY(-50%);
-      font-size: 120px;
-      opacity: 0.04;
-      pointer-events: none;
-    }
-    .hero-label {
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: var(--gold);
-      margin-bottom: 6px;
-    }
-    .hero-title {
-      font-family: 'Libre Baskerville', serif;
-      font-size: 26px;
-      font-weight: 700;
-      color: var(--white);
-      margin-bottom: 8px;
-    }
-    .hero-desc {
-      font-size: 13px;
-      color: var(--slate);
-      max-width: 480px;
-      line-height: 1.6;
-    }
-    .hero-stats {
-      display: flex;
-      gap: 20px;
-      flex-shrink: 0;
-    }
-    .hero-stat {
-      text-align: center;
-      background: rgba(255,255,255,0.07);
-      border: 1px solid rgba(201,168,76,0.15);
-      border-radius: 8px;
-      padding: 16px 22px;
-      min-width: 90px;
-    }
-    .hero-stat-num {
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 26px;
-      font-weight: 500;
-      color: var(--gold);
-      line-height: 1;
-    }
-    .hero-stat-label {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--slate);
-      margin-top: 6px;
-    }
+/* TOAST */
+#toast{position:fixed;bottom:24px;right:24px;background:rgba(19,34,56,.97);
+  border:1px solid var(--border);border-radius:8px;padding:12px 16px;
+  display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--white);
+  box-shadow:0 8px 32px rgba(0,0,0,.4);transform:translateY(80px);opacity:0;
+  transition:transform .3s ease,opacity .3s ease;z-index:400;max-width:320px}
+#toast.show{transform:translateY(0);opacity:1}
+#toast.success{border-color:rgba(46,204,113,.4)}
+#toast.error{border-color:rgba(231,76,60,.4)}
 
-    /* ── SECTION TITLE ── */
-    .section-title {
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: var(--muted);
-      margin-bottom: 16px;
-    }
+/* EMPTY STATE */
+.empty-state{padding:48px;text-align:center;color:var(--muted)}
+.empty-state .ei{font-size:38px;margin-bottom:10px}
+.empty-state p{font-size:13px}
 
-    /* ── OPERATION CARDS ── */
-    .cards-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
-    }
+/* LOADING */
+.loading-row td{text-align:center;color:var(--muted);padding:28px!important;font-size:12.5px}
 
-    .op-card {
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(143,163,187,0.12);
-      border-radius: 8px;
-      padding: 22px;
-      cursor: pointer;
-      transition: border-color var(--transition), background var(--transition), transform var(--transition), box-shadow var(--transition);
-    }
-    .op-card:hover {
-      background: rgba(201,168,76,0.06);
-      border-color: rgba(201,168,76,0.3);
-      transform: translateY(-2px);
-      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-    }
-    .op-card-icon {
-      width: 42px; height: 42px;
-      border-radius: 8px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 20px;
-      margin-bottom: 14px;
-    }
-    .op-card-title {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--white);
-      margin-bottom: 6px;
-    }
-    .op-card-desc {
-      font-size: 12px;
-      color: var(--slate);
-      line-height: 1.5;
-    }
+/* PROFILE CARD */
+.profile-card{background:rgba(19,34,56,.7);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.profile-banner{height:100px;background:linear-gradient(135deg,var(--navy-light),#0f2545,#1a3a6b)}
+.profile-body{padding:0 24px 24px}
+.profile-avatar{width:72px;height:72px;background:linear-gradient(135deg,var(--gold),var(--gold-dim));
+  border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:26px;font-weight:700;color:var(--navy);border:4px solid var(--navy-mid);
+  margin-top:-36px;margin-bottom:12px;font-family:'Libre Baskerville',serif}
+.profile-name{font-family:'Libre Baskerville',serif;font-size:20px;margin-bottom:4px}
+.profile-info-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px}
+.profile-info-item label{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);display:block;margin-bottom:4px}
+.profile-info-item span{font-size:13.5px;color:var(--white)}
 
-    /* icon backgrounds */
-    .ic-blue   { background: rgba(41,128,185,0.2); }
-    .ic-gold   { background: rgba(201,168,76,0.15); }
-    .ic-green  { background: rgba(30,126,52,0.2); }
-    .ic-red    { background: rgba(192,57,43,0.2); }
-    .ic-purple { background: rgba(142,68,173,0.2); }
-    .ic-teal   { background: rgba(22,160,133,0.2); }
+/* AUDIT LOG */
+.audit-action{font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:600;
+  padding:2px 7px;border-radius:4px}
+.audit-create{background:rgba(30,126,52,.2);color:#2ecc71}
+.audit-update{background:rgba(41,128,185,.2);color:#5dade2}
+.audit-delete{background:rgba(192,57,43,.2);color:#e74c3c}
+.audit-login{background:rgba(201,168,76,.15);color:var(--gold)}
 
-    /* ── DATA TABLE ── */
-    .panel {
-      background: rgba(19,34,56,0.7);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      overflow: hidden;
-    }
-    .panel-header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 18px 22px;
-      border-bottom: 1px solid var(--border);
-    }
-    .panel-title {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--white);
-    }
-    .panel-sub {
-      font-size: 12px;
-      color: var(--slate);
-      margin-top: 2px;
-    }
+/* ACCESS DENIED */
+.access-denied{padding:60px;text-align:center}
+.access-denied .ad-icon{font-size:48px;margin-bottom:16px}
+.access-denied h2{font-family:'Libre Baskerville',serif;font-size:20px;margin-bottom:8px}
+.access-denied p{font-size:13px;color:var(--slate)}
 
-    .search-bar {
-      display: flex; align-items: center; gap: 8px;
-    }
-    .search-bar input {
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(143,163,187,0.2);
-      border-radius: var(--radius);
-      padding: 8px 14px;
-      color: var(--white);
-      font-size: 13px;
-      font-family: 'IBM Plex Sans', sans-serif;
-      outline: none;
-      width: 220px;
-      transition: border-color var(--transition);
-    }
-    .search-bar input:focus { border-color: var(--gold); }
-    .search-bar input::placeholder { color: var(--muted); }
+/* REPORT PRINT AREA */
+.report-preview{background:rgba(255,255,255,.02);border:1px solid var(--border);
+  border-radius:8px;padding:24px;margin-top:16px}
+.report-header{display:flex;align-items:center;gap:16px;margin-bottom:24px;
+  padding-bottom:16px;border-bottom:1px solid var(--border)}
+.report-header-info h2{font-family:'Libre Baskerville',serif;font-size:18px}
+.report-header-info p{font-size:12px;color:var(--slate)}
+.report-meta{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;
+  margin-bottom:20px;background:rgba(255,255,255,.02);border-radius:6px;padding:14px}
+.report-meta-item label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;
+  color:var(--muted);display:block;margin-bottom:3px}
+.report-meta-item span{font-size:13px}
 
-    .btn-sm {
-      padding: 8px 16px;
-      border-radius: var(--radius);
-      font-size: 12px;
-      font-weight: 600;
-      font-family: 'IBM Plex Sans', sans-serif;
-      cursor: pointer;
-      border: none;
-      transition: opacity var(--transition), box-shadow var(--transition);
-      letter-spacing: 0.04em;
-    }
-    .btn-gold {
-      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dim) 100%);
-      color: var(--navy);
-      box-shadow: 0 2px 12px rgba(201,168,76,0.2);
-    }
-    .btn-gold:hover { opacity: 0.9; box-shadow: 0 4px 18px rgba(201,168,76,0.35); }
-    .btn-outline {
-      background: transparent;
-      border: 1px solid rgba(143,163,187,0.2) !important;
-      color: var(--slate);
-    }
-    .btn-outline:hover { border-color: rgba(201,168,76,0.3) !important; color: var(--white); }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    thead th {
-      padding: 11px 18px;
-      text-align: left;
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--muted);
-      background: rgba(255,255,255,0.02);
-      border-bottom: 1px solid var(--border);
-    }
-    tbody tr {
-      border-bottom: 1px solid rgba(143,163,187,0.07);
-      transition: background var(--transition);
-    }
-    tbody tr:hover { background: rgba(201,168,76,0.04); }
-    tbody td {
-      padding: 13px 18px;
-      font-size: 13px;
-      color: var(--white);
-      vertical-align: middle;
-    }
-    .td-mono { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--slate); }
-
-    .badge {
-      display: inline-flex; align-items: center;
-      padding: 3px 10px;
-      border-radius: 20px;
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.04em;
-    }
-    .badge-green { background: rgba(30,126,52,0.2); color: #2ecc71; }
-    .badge-gold  { background: rgba(201,168,76,0.15); color: var(--gold); }
-    .badge-blue  { background: rgba(41,128,185,0.2); color: #5dade2; }
-    .badge-red   { background: rgba(192,57,43,0.2); color: #e74c3c; }
-    .badge-gray  { background: rgba(143,163,187,0.1); color: var(--slate); }
-
-    /* ── GRADES SECTION ── */
-    .grade-filters {
-      display: flex; gap: 10px;
-      padding: 16px 22px;
-      border-bottom: 1px solid var(--border);
-      flex-wrap: wrap;
-    }
-    .filter-chip {
-      padding: 6px 14px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 500;
-      cursor: pointer;
-      border: 1px solid rgba(143,163,187,0.15);
-      color: var(--slate);
-      background: transparent;
-      font-family: 'IBM Plex Sans', sans-serif;
-      transition: all var(--transition);
-    }
-    .filter-chip.active, .filter-chip:hover {
-      background: rgba(201,168,76,0.12);
-      border-color: rgba(201,168,76,0.3);
-      color: var(--gold);
-    }
-
-    .grade-cell {
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 13px;
-      font-weight: 500;
-    }
-    .grade-a { color: #2ecc71; }
-    .grade-b { color: #5dade2; }
-    .grade-c { color: var(--gold); }
-    .grade-d { color: #e67e22; }
-    .grade-f { color: #e74c3c; }
-
-    /* ── FORM PANELS ── */
-    .form-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-    }
-    .form-group { margin-bottom: 18px; }
-    .form-group label {
-      display: block;
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--slate);
-      margin-bottom: 8px;
-    }
-    .form-group input,
-    .form-group select,
-    .form-group textarea {
-      width: 100%;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(143,163,187,0.2);
-      border-radius: var(--radius);
-      padding: 10px 14px;
-      color: var(--white);
-      font-family: 'IBM Plex Sans', sans-serif;
-      font-size: 13.5px;
-      outline: none;
-      transition: border-color var(--transition), box-shadow var(--transition);
-    }
-    .form-group input:focus,
-    .form-group select:focus,
-    .form-group textarea:focus {
-      border-color: var(--gold);
-      box-shadow: 0 0 0 3px rgba(201,168,76,0.1);
-    }
-    .form-group select option { background: var(--navy-mid); }
-    .form-group textarea { resize: vertical; min-height: 80px; }
-    .form-span-2 { grid-column: span 2; }
-    .form-actions {
-      display: flex; gap: 10px;
-      justify-content: flex-end;
-      padding-top: 8px;
-    }
-
-    /* ── MODAL OVERLAY ── */
-    .modal-overlay {
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,0.6);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 200;
-      backdrop-filter: blur(4px);
-    }
-    .modal-overlay.open { display: flex; }
-    .modal {
-      background: var(--navy-mid);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      width: 540px;
-      max-height: 85vh;
-      overflow-y: auto;
-      animation: fadeUp 0.3s ease both;
-    }
-    .modal-header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 22px 26px;
-      border-bottom: 1px solid var(--border);
-    }
-    .modal-title {
-      font-family: 'Libre Baskerville', serif;
-      font-size: 17px;
-      color: var(--white);
-    }
-    .modal-close {
-      background: none; border: none;
-      color: var(--slate); font-size: 20px;
-      cursor: pointer; line-height: 1;
-      transition: color var(--transition);
-    }
-    .modal-close:hover { color: var(--white); }
-    .modal-body { padding: 26px; }
-    .modal-footer {
-      padding: 18px 26px;
-      border-top: 1px solid var(--border);
-      display: flex; justify-content: flex-end; gap: 10px;
-    }
-
-    /* ── ALERT TOAST ── */
-    #toast {
-      position: fixed;
-      bottom: 28px; right: 28px;
-      background: rgba(19,34,56,0.97);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 14px 18px;
-      display: flex; align-items: center; gap: 12px;
-      font-size: 13px;
-      color: var(--white);
-      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-      transform: translateY(100px);
-      opacity: 0;
-      transition: transform 0.3s ease, opacity 0.3s ease;
-      z-index: 300;
-      max-width: 340px;
-    }
-    #toast.show { transform: translateY(0); opacity: 1; }
-    #toast.success { border-color: rgba(46,204,113,0.4); }
-    #toast.error { border-color: rgba(231,76,60,0.4); }
-    #toast-icon { font-size: 18px; }
-
-    /* ── STATS ROW ── */
-    .stats-row {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 14px;
-      margin-bottom: 24px;
-    }
-    .stat-card {
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(143,163,187,0.1);
-      border-radius: 8px;
-      padding: 18px 20px;
-    }
-    .stat-card-label {
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--muted);
-      margin-bottom: 8px;
-    }
-    .stat-card-val {
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 28px;
-      color: var(--white);
-      font-weight: 500;
-    }
-    .stat-card-change {
-      font-size: 12px;
-      color: var(--slate);
-      margin-top: 4px;
-    }
-    .up { color: #2ecc71; }
-    .down { color: #e74c3c; }
-
-    /* Responsive hint */
-    @media (max-width: 900px) {
-      .cards-grid { grid-template-columns: 1fr 1fr; }
-      .hero-stats { display: none; }
-    }
-    @media (max-width: 640px) {
-      .sidebar { transform: translateX(-100%); }
-      .main { margin-left: 0; }
-      .cards-grid { grid-template-columns: 1fr; }
-    }
-
-    /* ── EMPTY STATE ── */
-    .empty-state {
-      padding: 48px;
-      text-align: center;
-      color: var(--muted);
-    }
-    .empty-state .empty-icon { font-size: 40px; margin-bottom: 12px; }
-    .empty-state p { font-size: 14px; }
-
-    /* ── LOADING ── */
-    .loading-row td {
-      text-align: center;
-      color: var(--muted);
-      padding: 32px !important;
-      font-size: 13px;
-    }
-
-    .violation-badge {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 600;
-    }
-
-  </style>
+/* RESPONSIVE */
+@media(max-width:900px){.cards-grid{grid-template-columns:1fr 1fr}.hero-stats{display:none}}
+@media(max-width:640px){.sidebar{transform:translateX(-100%)}.main{margin-left:0}.cards-grid{grid-template-columns:1fr}}
+</style>
 </head>
 <body>
 
-<!-- ════════════════════════════════════════
-     LOGIN SCREEN
-═════════════════════════════════════════ -->
-<div id="login-screen">
-  <div class="login-card">
-    <div class="login-crest">
+<!-- ══ LOGIN ══ -->
+<div id="login-screen" class="auth-screen">
+  <div class="auth-card">
+    <div class="auth-crest">
       <div class="crest-icon">🎖️</div>
-      <div class="crest-text">
-        <h1>SMC PORTAL</h1>
-        <p>Records & Grading System</p>
-      </div>
+      <div><div class="crest-name">SMC PORTAL</div><div class="crest-sub">Records & Grading System</div></div>
     </div>
-    <div class="login-divider"></div>
-    <h2 class="login-title">Authorized Access Only</h2>
-    <p class="login-sub">Sign in with your institutional credentials to continue.</p>
-
-    <div class="field">
-      <label>Email / Username</label>
-      <input type="email" id="login-email" placeholder="admin@smc.edu.ph" autocomplete="username" />
-    </div>
-    <div class="field">
-      <label>Password</label>
-      <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" />
-    </div>
-    <div class="field">
-      <label>Access Role</label>
-      <select id="login-role">
+    <div class="auth-divider"></div>
+    <div class="auth-title">Authorized Access Only</div>
+    <p class="auth-sub">Sign in with your institutional credentials.</p>
+    <div class="field"><label>Email</label><input type="email" id="l-email" placeholder="admin@smc.edu.ph" autocomplete="username"/></div>
+    <div class="field"><label>Password</label><input type="password" id="l-pass" placeholder="••••••••" autocomplete="current-password"/></div>
+    <div class="field"><label>Access Role</label>
+      <select id="l-role">
         <option value="administrator">Administrator</option>
         <option value="registrar">Registrar</option>
         <option value="instructor">Instructor</option>
-        <option value="cadet">Cadet (View Only)</option>
+        <option value="cadet">Cadet</option>
       </select>
     </div>
-    <button class="btn-primary" id="login-btn" onclick="handleLogin()">Sign In to Portal</button>
-    <div class="login-error" id="login-error"></div>
-    <div class="login-footer">
-      Authorized personnel only — all access is logged and monitored.<br>
-      © SMC Records Management System
-    </div>
+    <button class="btn-primary" id="l-btn" onclick="handleLogin()">Sign In to Portal</button>
+    <div class="auth-error" id="l-err"></div>
+    <div class="auth-link"><a onclick="showForgot()">Forgot password?</a></div>
+    <div class="auth-link" style="margin-top:16px;color:var(--muted)">Authorized personnel only · All access is logged</div>
   </div>
 </div>
 
-<!-- ════════════════════════════════════════
-     MAIN APP
-═════════════════════════════════════════ -->
+<!-- ══ FORGOT PASSWORD ══ -->
+<div id="forgot-screen" class="auth-screen" style="display:none">
+  <div class="auth-card">
+    <div class="auth-crest">
+      <div class="crest-icon">🔑</div>
+      <div><div class="crest-name">SMC PORTAL</div><div class="crest-sub">Password Reset</div></div>
+    </div>
+    <div class="auth-divider"></div>
+    <div class="auth-title">Reset Password</div>
+    <p class="auth-sub">Enter your email and we'll send a reset link.</p>
+    <div class="field"><label>Email</label><input type="email" id="f-email" placeholder="your@email.com"/></div>
+    <button class="btn-primary" onclick="handleForgot()">Send Reset Link</button>
+    <div class="auth-error" id="f-err"></div>
+    <div class="auth-success" id="f-ok">Reset link sent! Check your email.</div>
+    <div class="auth-link"><a onclick="showLogin()">← Back to Login</a></div>
+  </div>
+</div>
+
+<!-- ══ APP ══ -->
 <div id="app">
 
   <!-- SIDEBAR -->
@@ -918,212 +415,136 @@
     <div class="sidebar-header">
       <div class="sidebar-brand">
         <div class="brand-icon">🎖️</div>
-        <div>
-          <div class="brand-text">SMC Portal</div>
-          <div class="brand-sub">Admin Portal</div>
-        </div>
+        <div><div class="brand-text">SMC Portal</div><div class="brand-sub">Admin Portal</div></div>
       </div>
     </div>
 
-    <div class="sidebar-section">
-      <div class="sidebar-section-label">Overview</div>
-      <div class="nav-item active" onclick="navigate('dashboard', this)">
-        <span class="nav-icon">🏛️</span> Dashboard
-      </div>
+    <div class="nav-section">
+      <div class="nav-label">Overview</div>
+      <div class="nav-item active" data-page="dashboard" onclick="nav('dashboard',this)"><span class="ni">🏛️</span>Dashboard</div>
     </div>
 
-    <div class="sidebar-section">
-      <div class="sidebar-section-label">Cadet Records</div>
-      <div class="nav-item" onclick="navigate('cadets', this)">
-        <span class="nav-icon">👤</span> Cadet Roster
-      </div>
-      <div class="nav-item" onclick="navigate('enroll', this)">
-        <span class="nav-icon">➕</span> Enroll Cadet
-      </div>
-      <div class="nav-item" onclick="navigate('courses', this)">
-        <span class="nav-icon">📋</span> Courses
-      </div>
+    <div class="nav-section" data-roles="administrator,registrar">
+      <div class="nav-label">Cadet Records</div>
+      <div class="nav-item" data-page="cadets" data-roles="administrator,registrar" onclick="nav('cadets',this)"><span class="ni">👥</span>Cadet Roster</div>
+      <div class="nav-item" data-page="enroll" data-roles="administrator,registrar" onclick="nav('enroll',this)"><span class="ni">➕</span>Enroll Cadet</div>
+      <div class="nav-item" data-page="courses" data-roles="administrator,registrar" onclick="nav('courses',this)"><span class="ni">📋</span>Courses</div>
     </div>
 
-    <div class="sidebar-section">
-      <div class="sidebar-section-label">Academic</div>
-      <div class="nav-item" onclick="navigate('grades', this)">
-        <span class="nav-icon">📊</span> Grading System
-      </div>
-      <div class="nav-item" onclick="navigate('encode-grade', this)">
-        <span class="nav-icon">✏️</span> Encode Grades
-      </div>
-      <div class="nav-item" onclick="navigate('reports', this)">
-        <span class="nav-icon">📄</span> Reports & Transcripts
-      </div>
+    <div class="nav-section" data-roles="administrator,registrar,instructor">
+      <div class="nav-label">Academic</div>
+      <div class="nav-item" data-page="grades" data-roles="administrator,registrar,instructor" onclick="nav('grades',this)"><span class="ni">📊</span>Grading System</div>
+      <div class="nav-item" data-page="encode-grade" data-roles="administrator,registrar,instructor" onclick="nav('encode-grade',this)"><span class="ni">✏️</span>Encode Grades</div>
+      <div class="nav-item" data-page="reports" data-roles="administrator,registrar" onclick="nav('reports',this)"><span class="ni">📄</span>Reports</div>
     </div>
 
-    <div class="sidebar-section">
-      <div class="sidebar-section-label">Administration</div>
-      <div class="nav-item" onclick="navigate('violations', this)">
-        <span class="nav-icon">⚠️</span> Violations Log
-      </div>
-      <div class="nav-item" onclick="navigate('users', this)">
-        <span class="nav-icon">🔐</span> User Management
-      </div>
-      <div class="nav-item" onclick="navigate('settings', this)">
-        <span class="nav-icon">⚙️</span> Settings
-      </div>
+    <div class="nav-section" data-roles="cadet">
+      <div class="nav-label">My Records</div>
+      <div class="nav-item" data-page="my-grades" data-roles="cadet" onclick="nav('my-grades',this)"><span class="ni">📊</span>My Grades</div>
+      <div class="nav-item" data-page="my-profile" data-roles="cadet,instructor" onclick="nav('my-profile',this)"><span class="ni">👤</span>My Profile</div>
+    </div>
+
+    <div class="nav-section" data-roles="administrator,registrar">
+      <div class="nav-label">Administration</div>
+      <div class="nav-item" data-page="violations" data-roles="administrator,registrar" onclick="nav('violations',this)"><span class="ni">⚠️</span>Violations Log</div>
+      <div class="nav-item" data-page="users" data-roles="administrator" onclick="nav('users',this)"><span class="ni">🔐</span>User Management</div>
+      <div class="nav-item" data-page="audit" data-roles="administrator" onclick="nav('audit',this)"><span class="ni">📋</span>Audit Log</div>
+      <div class="nav-item" data-page="settings" data-roles="administrator" onclick="nav('settings',this)"><span class="ni">⚙️</span>Settings</div>
     </div>
 
     <div class="sidebar-footer">
       <div class="user-chip">
-        <div class="user-avatar" id="sidebar-avatar">AU</div>
+        <div class="user-avatar" id="sb-avatar">AU</div>
         <div>
-          <div class="user-name" id="sidebar-name">Admin User</div>
-          <div class="user-role" id="sidebar-role">Administrator</div>
+          <div class="user-info-name" id="sb-name">Admin User</div>
+          <div class="user-info-role"><span class="role-pill role-admin" id="sb-role-pill">Admin</span></div>
         </div>
       </div>
       <button class="logout-btn" onclick="handleLogout()">🚪 Sign Out</button>
     </div>
   </nav>
 
-  <!-- MAIN CONTENT -->
+  <!-- MAIN -->
   <div class="main">
-
-    <!-- TOPBAR -->
     <div class="topbar">
       <div class="breadcrumb">
-        <span>SMC Portal</span>
-        <span class="sep">/</span>
-        <span class="current" id="breadcrumb-label">Dashboard</span>
+        <span>SMC Portal</span><span class="sep">/</span><span class="cur" id="bc-label">Dashboard</span>
       </div>
       <div class="topbar-right">
-        <div class="status-pill">
-          <div class="status-dot"></div>
-          System Online
-        </div>
+        <div class="status-pill"><div class="status-dot"></div>System Online</div>
       </div>
     </div>
 
-    <!-- PAGES -->
     <div class="content">
 
-      <!-- ── DASHBOARD ── -->
+      <!-- ══ DASHBOARD ══ -->
       <div class="page active" id="page-dashboard">
         <div class="hero-banner">
           <div>
             <div class="hero-label">SMC — Student Records System</div>
             <div class="hero-title">Administration Hub</div>
-            <div class="hero-desc">Manage cadet enrollment, course assignments, academic records, grades, and disciplinary logs from one unified portal.</div>
+            <div class="hero-desc">Manage cadet enrollment, academic records, grades, and disciplinary logs from one unified portal.</div>
           </div>
           <div class="hero-stats">
-            <div class="hero-stat">
-              <div class="hero-stat-num" id="stat-cadets">—</div>
-              <div class="hero-stat-label">Cadets</div>
-            </div>
-            <div class="hero-stat">
-              <div class="hero-stat-num" id="stat-courses">—</div>
-              <div class="hero-stat-label">Courses</div>
-            </div>
-            <div class="hero-stat">
-              <div class="hero-stat-num">SY 25</div>
-              <div class="hero-stat-label">Current Year</div>
-            </div>
+            <div class="hero-stat"><div class="hero-stat-num" id="ds-cadets">—</div><div class="hero-stat-lbl">Cadets</div></div>
+            <div class="hero-stat"><div class="hero-stat-num" id="ds-courses">—</div><div class="hero-stat-lbl">Courses</div></div>
+            <div class="hero-stat"><div class="hero-stat-num">SY 25</div><div class="hero-stat-lbl">Current Year</div></div>
           </div>
         </div>
-
-        <p class="section-title">Operations</p>
-        <div class="cards-grid">
-          <div class="op-card" onclick="navigate('enroll', null)">
-            <div class="op-card-icon ic-blue">👤</div>
-            <div class="op-card-title">Enroll Cadet</div>
-            <div class="op-card-desc">Register a new cadet with their ID, program, course assignments, and enrollment status.</div>
-          </div>
-          <div class="op-card" onclick="navigate('grades', null)">
-            <div class="op-card-icon ic-gold">📊</div>
-            <div class="op-card-title">Grading System</div>
-            <div class="op-card-desc">View, filter, and manage academic grades per subject, term, and cadet.</div>
-          </div>
-          <div class="op-card" onclick="navigate('encode-grade', null)">
-            <div class="op-card-icon ic-green">✏️</div>
-            <div class="op-card-title">Encode Grades</div>
-            <div class="op-card-desc">Input or update grade entries for cadets per course and assessment period.</div>
-          </div>
-          <div class="op-card" onclick="navigate('courses', null)">
-            <div class="op-card-icon ic-purple">📋</div>
-            <div class="op-card-title">Course Management</div>
-            <div class="op-card-desc">Add or update courses, assign instructors and cadets, set unit weights.</div>
-          </div>
-          <div class="op-card" onclick="navigate('violations', null)">
-            <div class="op-card-icon ic-red">⚠️</div>
-            <div class="op-card-title">Violations Log</div>
-            <div class="op-card-desc">Record and track disciplinary violations per cadet with automatic tier tracking.</div>
-          </div>
-          <div class="op-card" onclick="navigate('reports', null)">
-            <div class="op-card-icon ic-teal">📄</div>
-            <div class="op-card-title">Reports & Transcripts</div>
-            <div class="op-card-desc">Generate official grade reports and cadet transcripts for review or export.</div>
-          </div>
+        <div class="stats-row" id="dash-stats-row">
+          <div class="stat-card"><div class="stat-card-lbl">Total Cadets</div><div class="stat-card-val" id="ds2-cadets">—</div><div class="stat-card-sub">Enrolled</div></div>
+          <div class="stat-card"><div class="stat-card-lbl">Active Violations</div><div class="stat-card-val" id="ds2-viols">—</div><div class="stat-card-sub">On record</div></div>
+          <div class="stat-card"><div class="stat-card-lbl">Total Grades</div><div class="stat-card-val" id="ds2-grades">—</div><div class="stat-card-sub">Encoded</div></div>
+          <div class="stat-card"><div class="stat-card-lbl">Courses Active</div><div class="stat-card-val" id="ds2-courses">—</div><div class="stat-card-sub">This term</div></div>
+        </div>
+        <p class="sec-title">Quick Operations</p>
+        <div class="cards-grid" id="dash-cards">
+          <div class="op-card" data-roles="administrator,registrar" onclick="nav('enroll',null)"><div class="op-card-icon ic-blue">👤</div><div class="op-card-title">Enroll Cadet</div><div class="op-card-desc">Register a new cadet with their ID, program, and enrollment status.</div></div>
+          <div class="op-card" data-roles="administrator,registrar,instructor" onclick="nav('encode-grade',null)"><div class="op-card-icon ic-gold">✏️</div><div class="op-card-title">Encode Grades</div><div class="op-card-desc">Input or update grade entries for cadets per course and term.</div></div>
+          <div class="op-card" data-roles="administrator,registrar,instructor" onclick="nav('grades',null)"><div class="op-card-icon ic-green">📊</div><div class="op-card-title">Grading System</div><div class="op-card-desc">View, filter, and manage all academic grades per subject and term.</div></div>
+          <div class="op-card" data-roles="administrator,registrar" onclick="nav('courses',null)"><div class="op-card-icon ic-purple">📋</div><div class="op-card-title">Course Management</div><div class="op-card-desc">Add or update courses, assign instructors and set unit weights.</div></div>
+          <div class="op-card" data-roles="administrator,registrar" onclick="nav('violations',null)"><div class="op-card-icon ic-red">⚠️</div><div class="op-card-title">Violations Log</div><div class="op-card-desc">Record and track disciplinary violations with automatic tier tracking.</div></div>
+          <div class="op-card" data-roles="administrator,registrar" onclick="nav('reports',null)"><div class="op-card-icon ic-teal">📄</div><div class="op-card-title">Reports & Transcripts</div><div class="op-card-desc">Generate and print official grade reports and cadet transcripts.</div></div>
+          <div class="op-card" data-roles="cadet" onclick="nav('my-grades',null)"><div class="op-card-icon ic-gold">📊</div><div class="op-card-title">My Grades</div><div class="op-card-desc">View your academic performance records and computed grades.</div></div>
+          <div class="op-card" data-roles="cadet,instructor" onclick="nav('my-profile',null)"><div class="op-card-icon ic-blue">👤</div><div class="op-card-title">My Profile</div><div class="op-card-desc">View and manage your personal and academic profile information.</div></div>
         </div>
       </div>
 
-      <!-- ── CADET ROSTER ── -->
+      <!-- ══ CADET ROSTER ══ -->
       <div class="page" id="page-cadets">
         <div class="panel">
           <div class="panel-header">
-            <div>
-              <div class="panel-title">Cadet Roster</div>
-              <div class="panel-sub">All enrolled cadets in the system</div>
-            </div>
-            <div class="search-bar">
-              <input type="text" id="cadet-search" placeholder="Search cadets..." oninput="filterTable('cadet-tbody', this.value)" />
-              <button class="btn-sm btn-gold" onclick="navigate('enroll', null)">+ Enroll</button>
+            <div><div class="panel-title">Cadet Roster</div><div class="panel-sub">All enrolled cadets in the system</div></div>
+            <div class="panel-actions">
+              <div class="search-bar"><input type="text" placeholder="Search cadets…" oninput="filterTbl('cadet-tbody',this.value)"/></div>
+              <button class="btn btn-gold" onclick="nav('enroll',null)">+ Enroll</button>
             </div>
           </div>
           <table>
-            <thead>
-              <tr>
-                <th>Cadet ID</th>
-                <th>Full Name</th>
-                <th>Course</th>
-                <th>Year Level</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="cadet-tbody">
-              <tr class="loading-row"><td colspan="6">Loading cadets…</td></tr>
-            </tbody>
+            <thead><tr><th>Cadet ID</th><th>Full Name</th><th>Course</th><th>Year</th><th>Section</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="cadet-tbody"><tr class="loading-row"><td colspan="7">Loading cadets…</td></tr></tbody>
           </table>
         </div>
       </div>
 
-      <!-- ── ENROLL CADET ── -->
+      <!-- ══ ENROLL CADET ══ -->
       <div class="page" id="page-enroll">
         <div class="panel">
           <div class="panel-header">
-            <div>
-              <div class="panel-title">Enroll New Cadet</div>
-              <div class="panel-sub">Complete all required fields to register a cadet.</div>
-            </div>
+            <div><div class="panel-title">Enroll New Cadet</div><div class="panel-sub">Complete all required fields to register a cadet.</div></div>
           </div>
-          <div style="padding: 26px;">
+          <div class="form-body">
             <div class="form-grid">
-              <div class="form-group">
-                <label>Cadet ID Number</label>
-                <input type="text" id="enroll-id" placeholder="e.g. SMC-2025-001" />
+              <div class="form-group"><label>Cadet ID Number *</label><input type="text" id="e-id" placeholder="SMC-2025-001"/></div>
+              <div class="form-group"><label>Email (for portal login)</label><input type="email" id="e-email" placeholder="cadet@smc.edu.ph"/></div>
+              <div class="form-group"><label>Last Name *</label><input type="text" id="e-lname" placeholder="Dela Cruz"/></div>
+              <div class="form-group"><label>First Name *</label><input type="text" id="e-fname" placeholder="Juan"/></div>
+              <div class="form-group"><label>Middle Name</label><input type="text" id="e-mname" placeholder="Santos"/></div>
+              <div class="form-group"><label>Gender</label>
+                <select id="e-gender"><option value="">— Select —</option><option>Male</option><option>Female</option></select>
               </div>
-              <div class="form-group">
-                <label>Last Name</label>
-                <input type="text" id="enroll-lastname" placeholder="Dela Cruz" />
-              </div>
-              <div class="form-group">
-                <label>First Name</label>
-                <input type="text" id="enroll-firstname" placeholder="Juan" />
-              </div>
-              <div class="form-group">
-                <label>Middle Name</label>
-                <input type="text" id="enroll-middlename" placeholder="Santos" />
-              </div>
-              <div class="form-group">
-                <label>Course / Program</label>
-                <select id="enroll-course">
+              <div class="form-group"><label>Course / Program *</label>
+                <select id="e-course">
                   <option value="">— Select Course —</option>
                   <option>Bachelor of Science in Criminology</option>
                   <option>Bachelor of Science in Criminal Justice</option>
@@ -1131,314 +552,217 @@
                   <option>Citizens Military Training</option>
                 </select>
               </div>
-              <div class="form-group">
-                <label>Year Level</label>
-                <select id="enroll-year">
-                  <option value="1">1st Year</option>
-                  <option value="2">2nd Year</option>
-                  <option value="3">3rd Year</option>
-                  <option value="4">4th Year</option>
-                </select>
+              <div class="form-group"><label>Year Level</label>
+                <select id="e-year"><option value="1st Year">1st Year</option><option value="2nd Year">2nd Year</option><option value="3rd Year">3rd Year</option><option value="4th Year">4th Year</option></select>
               </div>
-              <div class="form-group">
-                <label>Section</label>
-                <input type="text" id="enroll-section" placeholder="e.g. Alpha" />
+              <div class="form-group"><label>Section</label><input type="text" id="e-section" placeholder="Alpha"/></div>
+              <div class="form-group"><label>Enrollment Status</label>
+                <select id="e-status"><option value="active">Active</option><option value="irregular">Irregular</option><option value="on-leave">On Leave</option></select>
               </div>
-              <div class="form-group">
-                <label>Enrollment Status</label>
-                <select id="enroll-status">
-                  <option value="active">Active</option>
-                  <option value="irregular">Irregular</option>
-                  <option value="on-leave">On Leave</option>
-                </select>
-              </div>
-              <div class="form-group form-span-2">
-                <label>Notes / Remarks</label>
-                <textarea id="enroll-notes" placeholder="Optional notes about this cadet..."></textarea>
-              </div>
+              <div class="form-group form-span-2"><label>Notes / Remarks</label><textarea id="e-notes" placeholder="Optional notes…"></textarea></div>
             </div>
-            <div class="form-actions">
-              <button class="btn-sm btn-outline" onclick="navigate('cadets', null)">Cancel</button>
-              <button class="btn-sm btn-gold" onclick="enrollCadet()">Save & Enroll</button>
+            <div class="form-actions" style="margin-top:14px">
+              <button class="btn btn-outline" onclick="nav('cadets',null)">Cancel</button>
+              <button class="btn btn-gold" onclick="enrollCadet()">Save & Enroll</button>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- ── COURSES ── -->
+      <!-- ══ COURSES ══ -->
       <div class="page" id="page-courses">
         <div class="panel">
           <div class="panel-header">
-            <div>
-              <div class="panel-title">Course List</div>
-              <div class="panel-sub">All active courses in the current academic year</div>
-            </div>
-            <button class="btn-sm btn-gold" onclick="openModal('course-modal')">+ Add Course</button>
+            <div><div class="panel-title">Course List</div><div class="panel-sub">All active courses this academic year</div></div>
+            <button class="btn btn-gold" onclick="openModal('course-modal');document.getElementById('course-modal-title').textContent='Add New Course';clearCourseForm()">+ Add Course</button>
           </div>
           <table>
-            <thead>
-              <tr>
-                <th>Course Code</th>
-                <th>Course Title</th>
-                <th>Units</th>
-                <th>Instructor</th>
-                <th>Enrolled</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody id="course-tbody">
-              <tr class="loading-row"><td colspan="6">Loading courses…</td></tr>
-            </tbody>
+            <thead><tr><th>Code</th><th>Course Title</th><th>Units</th><th>Instructor</th><th>Enrolled</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="course-tbody"><tr class="loading-row"><td colspan="7">Loading courses…</td></tr></tbody>
           </table>
         </div>
       </div>
 
-      <!-- ── GRADING SYSTEM ── -->
+      <!-- ══ GRADING SYSTEM ══ -->
       <div class="page" id="page-grades">
-        <div class="panel" style="margin-bottom: 20px;">
+        <div class="panel">
           <div class="panel-header">
-            <div>
-              <div class="panel-title">Grading System</div>
-              <div class="panel-sub">Academic performance records per cadet and course</div>
-            </div>
-            <div class="search-bar">
-              <input type="text" placeholder="Search by name or ID..." oninput="filterTable('grade-tbody', this.value)" />
-            </div>
+            <div><div class="panel-title">Grading System</div><div class="panel-sub">Academic performance records per cadet and course</div></div>
+            <div class="search-bar"><input type="text" placeholder="Search…" oninput="filterTbl('grade-tbody',this.value)"/></div>
           </div>
           <div class="grade-filters">
-            <button class="filter-chip active" onclick="setFilter(this, 'all')">All Terms</button>
-            <button class="filter-chip" onclick="setFilter(this, 'prelim')">Prelim</button>
-            <button class="filter-chip" onclick="setFilter(this, 'midterm')">Midterm</button>
-            <button class="filter-chip" onclick="setFilter(this, 'final')">Final</button>
+            <button class="filter-chip active" onclick="setGradeFilter(this,'all')">All</button>
+            <button class="filter-chip" onclick="setGradeFilter(this,'prelim')">Prelim</button>
+            <button class="filter-chip" onclick="setGradeFilter(this,'midterm')">Midterm</button>
+            <button class="filter-chip" onclick="setGradeFilter(this,'final')">Final</button>
           </div>
           <table>
-            <thead>
-              <tr>
-                <th>Cadet ID</th>
-                <th>Name</th>
-                <th>Course</th>
-                <th>Term</th>
-                <th>Prelim</th>
-                <th>Midterm</th>
-                <th>Final</th>
-                <th>Final Grade</th>
-                <th>Remarks</th>
-              </tr>
-            </thead>
-            <tbody id="grade-tbody">
-              <tr class="loading-row"><td colspan="9">Loading grades…</td></tr>
-            </tbody>
+            <thead><tr><th>Cadet ID</th><th>Name</th><th>Course</th><th>Term</th><th>Prelim</th><th>Midterm</th><th>Final</th><th>Computed</th><th>Remarks</th><th>Actions</th></tr></thead>
+            <tbody id="grade-tbody"><tr class="loading-row"><td colspan="10">Loading grades…</td></tr></tbody>
           </table>
         </div>
       </div>
 
-      <!-- ── ENCODE GRADES ── -->
+      <!-- ══ ENCODE GRADES ══ -->
       <div class="page" id="page-encode-grade">
         <div class="panel">
           <div class="panel-header">
-            <div>
-              <div class="panel-title">Encode Grades</div>
-              <div class="panel-sub">Input or update a cadet's grade for a specific course and term.</div>
-            </div>
+            <div><div class="panel-title">Encode Grades</div><div class="panel-sub">Input a cadet's grade for a specific course and term.</div></div>
           </div>
-          <div style="padding: 26px;">
+          <div class="form-body">
             <div class="form-grid">
-              <div class="form-group">
-                <label>Cadet ID</label>
-                <input type="text" id="grade-cadet-id" placeholder="SMC-2025-001" />
+              <div class="form-group"><label>Cadet *</label>
+                <select id="g-cadet"><option value="">— Select Cadet —</option></select>
               </div>
-              <div class="form-group">
-                <label>Course Code</label>
-                <select id="grade-course">
-                  <option value="">— Select Course —</option>
-                  <option value="NSTP101">NSTP 101</option>
-                  <option value="CMT201">CMT 201</option>
-                  <option value="ROTC101">ROTC 101</option>
-                  <option value="CRIM101">CRIM 101</option>
-                  <option value="CRIM102">CRIM 102</option>
-                </select>
+              <div class="form-group"><label>Course *</label>
+                <select id="g-course"><option value="">— Select Course —</option></select>
               </div>
-              <div class="form-group">
-                <label>Academic Term</label>
-                <select id="grade-term">
-                  <option value="prelim">Prelim</option>
-                  <option value="midterm">Midterm</option>
-                  <option value="final">Final</option>
-                </select>
+              <div class="form-group"><label>Academic Term</label>
+                <select id="g-term"><option value="prelim">Prelim</option><option value="midterm">Midterm</option><option value="final">Final</option></select>
               </div>
-              <div class="form-group">
-                <label>School Year</label>
-                <input type="text" id="grade-sy" value="2024-2025" />
-              </div>
-              <div class="form-group">
-                <label>Prelim Grade (0–100)</label>
-                <input type="number" id="grade-prelim" min="0" max="100" placeholder="85" />
-              </div>
-              <div class="form-group">
-                <label>Midterm Grade (0–100)</label>
-                <input type="number" id="grade-midterm" min="0" max="100" placeholder="88" />
-              </div>
-              <div class="form-group">
-                <label>Final Grade (0–100)</label>
-                <input type="number" id="grade-final" min="0" max="100" placeholder="90" />
-              </div>
-              <div class="form-group">
-                <label>Computed Grade</label>
-                <input type="text" id="grade-computed" readonly placeholder="Auto-computed" style="opacity:0.7;" />
-              </div>
-              <div class="form-group form-span-2">
-                <label>Instructor Remarks</label>
-                <textarea id="grade-remarks" placeholder="e.g. Passed, Conditionally Passed, Failed, Incomplete..."></textarea>
+              <div class="form-group"><label>School Year</label><input type="text" id="g-sy" value="2024-2025"/></div>
+              <div class="form-group"><label>Prelim (0–100)</label><input type="number" id="g-prelim" min="0" max="100" placeholder="85" oninput="computeGrade()"/></div>
+              <div class="form-group"><label>Midterm (0–100)</label><input type="number" id="g-midterm" min="0" max="100" placeholder="88" oninput="computeGrade()"/></div>
+              <div class="form-group"><label>Final Exam (0–100)</label><input type="number" id="g-final" min="0" max="100" placeholder="90" oninput="computeGrade()"/></div>
+              <div class="form-group"><label>Computed Grade</label><input type="text" id="g-computed" readonly placeholder="Auto-computed" style="opacity:.7"/></div>
+              <div class="form-group form-span-2"><label>Instructor Remarks</label>
+                <textarea id="g-remarks" placeholder="Passed, Failed, Incomplete, Conditionally Passed…"></textarea>
               </div>
             </div>
-            <div class="form-actions">
-              <button class="btn-sm btn-outline" onclick="navigate('grades', null)">Cancel</button>
-              <button class="btn-sm btn-gold" onclick="saveGrade()">Save Grade</button>
+            <div class="form-actions" style="margin-top:14px">
+              <button class="btn btn-outline" onclick="nav('grades',null)">Cancel</button>
+              <button class="btn btn-gold" onclick="saveGrade()">Save Grade</button>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- ── VIOLATIONS LOG ── -->
+      <!-- ══ VIOLATIONS ══ -->
       <div class="page" id="page-violations">
         <div class="panel">
           <div class="panel-header">
-            <div>
-              <div class="panel-title">Disciplinary Violations Log</div>
-              <div class="panel-sub">Violation 1: Warning · Violation 2: Probation · Violation 3+: Academic Suspension</div>
+            <div><div class="panel-title">Disciplinary Violations Log</div><div class="panel-sub">Warning → Probation → Academic Suspension</div></div>
+            <div class="panel-actions">
+              <div class="search-bar"><input type="text" placeholder="Search…" oninput="filterTbl('viol-tbody',this.value)"/></div>
+              <button class="btn btn-gold" onclick="openModal('viol-modal');editingViolId=null">+ Log Violation</button>
             </div>
-            <button class="btn-sm btn-gold" onclick="openModal('violation-modal')">+ Log Violation</button>
           </div>
           <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Cadet ID</th>
-                <th>Cadet Name</th>
-                <th>Violation Type</th>
-                <th>Tier</th>
-                <th>Logged By</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody id="violation-tbody">
-              <tr class="loading-row"><td colspan="7">Loading violations…</td></tr>
-            </tbody>
+            <thead><tr><th>Date</th><th>Cadet ID</th><th>Cadet Name</th><th>Violation Type</th><th>Tier</th><th>Status</th><th>Logged By</th><th>Actions</th></tr></thead>
+            <tbody id="viol-tbody"><tr class="loading-row"><td colspan="8">Loading violations…</td></tr></tbody>
           </table>
         </div>
       </div>
 
-      <!-- ── REPORTS ── -->
+      <!-- ══ REPORTS ══ -->
       <div class="page" id="page-reports">
-        <div class="hero-banner" style="margin-bottom: 24px;">
+        <div class="hero-banner" style="margin-bottom:22px">
           <div>
             <div class="hero-label">Academic Reports</div>
             <div class="hero-title">Reports & Transcripts</div>
-            <div class="hero-desc">Generate official grade reports and cadet transcripts. All documents are pulled from live records in the database.</div>
+            <div class="hero-desc">Generate and print official grade reports and cadet transcripts from live records.</div>
           </div>
         </div>
-        <div class="cards-grid">
-          <div class="op-card" onclick="showToast('Generating Grade Report…', 'success')">
-            <div class="op-card-icon ic-gold">📊</div>
-            <div class="op-card-title">Grade Report</div>
-            <div class="op-card-desc">Full academic grade report per course and term. Exportable as PDF.</div>
+        <div class="cards-grid" style="margin-bottom:22px">
+          <div class="op-card" onclick="generateReport('grades')"><div class="op-card-icon ic-gold">📊</div><div class="op-card-title">Grade Report</div><div class="op-card-desc">Full grade report per course and term. Print or save as PDF.</div></div>
+          <div class="op-card" onclick="generateReport('transcript')"><div class="op-card-icon ic-blue">🎓</div><div class="op-card-title">Transcript of Records</div><div class="op-card-desc">Official TOR per cadet with all completed courses and final grades.</div></div>
+          <div class="op-card" onclick="generateReport('enrollment')"><div class="op-card-icon ic-green">📋</div><div class="op-card-title">Enrollment Report</div><div class="op-card-desc">Enrollment statistics by course, year level, and section.</div></div>
+          <div class="op-card" onclick="generateReport('violations')"><div class="op-card-icon ic-red">⚠️</div><div class="op-card-title">Violations Summary</div><div class="op-card-desc">Disciplinary log summary with violation counts and status.</div></div>
+        </div>
+        <div id="report-area" style="display:none" class="report-preview">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <div class="panel-title" id="report-title">Report</div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-outline no-print" onclick="window.print()">🖨 Print / Save PDF</button>
+              <button class="btn btn-outline no-print" onclick="document.getElementById('report-area').style.display='none'">✕ Close</button>
+            </div>
           </div>
-          <div class="op-card" onclick="showToast('Generating Transcript of Records…', 'success')">
-            <div class="op-card-icon ic-blue">🎓</div>
-            <div class="op-card-title">Transcript of Records</div>
-            <div class="op-card-desc">Official TOR per cadet with all completed courses and final grades.</div>
-          </div>
-          <div class="op-card" onclick="showToast('Generating Enrollment Report…', 'success')">
-            <div class="op-card-icon ic-green">📋</div>
-            <div class="op-card-title">Enrollment Report</div>
-            <div class="op-card-desc">Enrollment statistics by course, year level, and section.</div>
-          </div>
-          <div class="op-card" onclick="showToast('Generating Violations Summary…', 'success')">
-            <div class="op-card-icon ic-red">⚠️</div>
-            <div class="op-card-title">Violations Summary</div>
-            <div class="op-card-desc">Disciplinary log summary for all cadets with violation counts and status.</div>
-          </div>
+          <div id="report-content"></div>
         </div>
       </div>
 
-      <!-- ── USER MANAGEMENT ── -->
+      <!-- ══ USER MANAGEMENT ══ -->
       <div class="page" id="page-users">
         <div class="panel">
           <div class="panel-header">
-            <div>
-              <div class="panel-title">User Management</div>
-              <div class="panel-sub">Manage system accounts and role-based access</div>
-            </div>
-            <button class="btn-sm btn-gold" onclick="openModal('user-modal')">+ Add User</button>
+            <div><div class="panel-title">User Management</div><div class="panel-sub">Manage system accounts and role-based access control</div></div>
+            <button class="btn btn-gold" onclick="openModal('user-modal');editingUserId=null;document.getElementById('user-modal-title').textContent='Add System User'">+ Add User</button>
           </div>
           <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Last Login</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody id="user-tbody">
-              <tr>
-                <td>Admin User</td>
-                <td class="td-mono">admin@smc.edu.ph</td>
-                <td><span class="badge badge-gold">Administrator</span></td>
-                <td class="td-mono">Today</td>
-                <td><span class="badge badge-green">Active</span></td>
-              </tr>
-              <tr>
-                <td>Registrar Office</td>
-                <td class="td-mono">registrar@smc.edu.ph</td>
-                <td><span class="badge badge-blue">Registrar</span></td>
-                <td class="td-mono">May 3, 2025</td>
-                <td><span class="badge badge-green">Active</span></td>
-              </tr>
-            </tbody>
+            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Cadet ID</th><th>Created</th><th>Actions</th></tr></thead>
+            <tbody id="user-tbody"><tr class="loading-row"><td colspan="6">Loading users…</td></tr></tbody>
           </table>
         </div>
       </div>
 
-      <!-- ── SETTINGS ── -->
-      <div class="page" id="page-settings">
+      <!-- ══ AUDIT LOG ══ -->
+      <div class="page" id="page-audit">
         <div class="panel">
           <div class="panel-header">
-            <div class="panel-title">System Settings</div>
+            <div><div class="panel-title">Audit Log</div><div class="panel-sub">All create, update, and delete actions performed in the system</div></div>
+            <div class="search-bar"><input type="text" placeholder="Search audit…" oninput="filterTbl('audit-tbody',this.value)"/></div>
           </div>
-          <div style="padding: 26px; max-width: 560px;">
-            <div class="form-group">
-              <label>Institution Name</label>
-              <input type="text" value="SMC — Records & Grading System" />
+          <table>
+            <thead><tr><th>Timestamp</th><th>Action</th><th>Module</th><th>Record</th><th>Details</th><th>Performed By</th></tr></thead>
+            <tbody id="audit-tbody"><tr class="loading-row"><td colspan="6">Loading audit log…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ══ MY GRADES (CADET) ══ -->
+      <div class="page" id="page-my-grades">
+        <div class="hero-banner" style="margin-bottom:22px">
+          <div>
+            <div class="hero-label">My Academic Records</div>
+            <div class="hero-title" id="my-grades-title">My Grades</div>
+            <div class="hero-desc">Your academic performance records per subject and term.</div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <div><div class="panel-title">Grade Records</div></div>
+            <div class="grade-filters" style="padding:0;border:0">
+              <button class="filter-chip active" onclick="setGradeFilter(this,'all')">All Terms</button>
+              <button class="filter-chip" onclick="setGradeFilter(this,'prelim')">Prelim</button>
+              <button class="filter-chip" onclick="setGradeFilter(this,'midterm')">Midterm</button>
+              <button class="filter-chip" onclick="setGradeFilter(this,'final')">Final</button>
             </div>
-            <div class="form-group">
-              <label>Current Academic Year</label>
-              <input type="text" value="2024–2025" />
+          </div>
+          <table>
+            <thead><tr><th>Course</th><th>Term</th><th>Prelim</th><th>Midterm</th><th>Final</th><th>Computed</th><th>Remarks</th></tr></thead>
+            <tbody id="my-grade-tbody"><tr class="loading-row"><td colspan="7">Loading your grades…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ══ MY PROFILE ══ -->
+      <div class="page" id="page-my-profile">
+        <div class="profile-card">
+          <div class="profile-banner"></div>
+          <div class="profile-body">
+            <div class="profile-avatar" id="prof-avatar">AU</div>
+            <div class="profile-name" id="prof-name">Loading…</div>
+            <div id="prof-role-badge"></div>
+            <div class="profile-info-grid" id="prof-info"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ SETTINGS ══ -->
+      <div class="page" id="page-settings">
+        <div class="panel">
+          <div class="panel-header"><div class="panel-title">System Settings</div></div>
+          <div class="form-body" style="max-width:560px">
+            <div class="form-group" style="margin-bottom:14px"><label>Institution Name</label><input type="text" value="SMC — Records & Grading System"/></div>
+            <div class="form-group" style="margin-bottom:14px"><label>Current Academic Year</label><input type="text" value="2024–2025"/></div>
+            <div class="form-group" style="margin-bottom:14px"><label>Current Semester</label>
+              <select><option>1st Semester</option><option>2nd Semester</option><option>Summer</option></select>
             </div>
-            <div class="form-group">
-              <label>Current Semester</label>
-              <select>
-                <option>1st Semester</option>
-                <option>2nd Semester</option>
-                <option>Summer</option>
-              </select>
+            <div class="form-group" style="margin-bottom:14px"><label>Passing Grade (%)</label><input type="number" value="75"/></div>
+            <div class="form-group" style="margin-bottom:14px"><label>Grade Formula</label>
+              <select><option>30% Prelim / 30% Midterm / 40% Final</option><option>25% Prelim / 35% Midterm / 40% Final</option></select>
             </div>
-            <div class="form-group">
-              <label>Passing Grade (%)</label>
-              <input type="number" value="75" />
-            </div>
-            <div class="form-group">
-              <label>Supabase Project URL</label>
-              <input type="text" id="setting-sb-url" placeholder="https://xxxx.supabase.co" value="" />
-            </div>
-            <div class="form-group">
-              <label>Supabase Anon Key</label>
-              <input type="text" id="setting-sb-key" placeholder="eyJhb..." value="" />
-            </div>
-            <div class="form-actions">
-              <button class="btn-sm btn-gold" onclick="saveSettings()">Save Settings</button>
-            </div>
+            <div class="form-actions"><button class="btn btn-gold" onclick="showToast('Settings saved.','success')">Save Settings</button></div>
           </div>
         </div>
       </div>
@@ -1447,591 +771,881 @@
   </div><!-- /main -->
 </div><!-- /app -->
 
-<!-- ══════════
-     MODALS
-════════════ -->
+<!-- ══ MODALS ══ -->
 
-<!-- Add Course -->
+<!-- EDIT CADET -->
+<div class="modal-overlay" id="edit-cadet-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header"><div class="modal-title">Edit Cadet Record</div><button class="modal-close" onclick="closeModal('edit-cadet-modal')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="ec-id"/>
+      <div class="form-grid">
+        <div class="form-group"><label>Cadet ID</label><input type="text" id="ec-cadet-id" readonly/></div>
+        <div class="form-group"><label>Status</label><select id="ec-status"><option value="active">Active</option><option value="irregular">Irregular</option><option value="on-leave">On Leave</option><option value="dropped">Dropped</option></select></div>
+        <div class="form-group"><label>Last Name</label><input type="text" id="ec-lname"/></div>
+        <div class="form-group"><label>First Name</label><input type="text" id="ec-fname"/></div>
+        <div class="form-group"><label>Course</label><input type="text" id="ec-course"/></div>
+        <div class="form-group"><label>Year Level</label><select id="ec-year"><option>1st Year</option><option>2nd Year</option><option>3rd Year</option><option>4th Year</option></select></div>
+        <div class="form-group"><label>Section</label><input type="text" id="ec-section"/></div>
+        <div class="form-group form-span-2"><label>Notes</label><textarea id="ec-notes"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('edit-cadet-modal')">Cancel</button>
+      <button class="btn btn-gold" onclick="updateCadet()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT GRADE -->
+<div class="modal-overlay" id="edit-grade-modal">
+  <div class="modal">
+    <div class="modal-header"><div class="modal-title">Edit Grade Record</div><button class="modal-close" onclick="closeModal('edit-grade-modal')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="eg-id"/>
+      <div class="form-grid">
+        <div class="form-group"><label>Prelim</label><input type="number" id="eg-prelim" min="0" max="100" oninput="computeEditGrade()"/></div>
+        <div class="form-group"><label>Midterm</label><input type="number" id="eg-midterm" min="0" max="100" oninput="computeEditGrade()"/></div>
+        <div class="form-group"><label>Final Exam</label><input type="number" id="eg-final" min="0" max="100" oninput="computeEditGrade()"/></div>
+        <div class="form-group"><label>Computed</label><input type="text" id="eg-computed" readonly style="opacity:.7"/></div>
+        <div class="form-group form-span-2"><label>Remarks</label><textarea id="eg-remarks"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('edit-grade-modal')">Cancel</button>
+      <button class="btn btn-gold" onclick="updateGrade()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- COURSE MODAL -->
 <div class="modal-overlay" id="course-modal">
   <div class="modal">
-    <div class="modal-header">
-      <div class="modal-title">Add New Course</div>
-      <button class="modal-close" onclick="closeModal('course-modal')">×</button>
-    </div>
+    <div class="modal-header"><div class="modal-title" id="course-modal-title">Add New Course</div><button class="modal-close" onclick="closeModal('course-modal')">×</button></div>
     <div class="modal-body">
+      <input type="hidden" id="cm-id"/>
       <div class="form-grid">
-        <div class="form-group">
-          <label>Course Code</label>
-          <input type="text" id="course-code" placeholder="e.g. NSTP101" />
-        </div>
-        <div class="form-group">
-          <label>Units</label>
-          <input type="number" id="course-units" placeholder="3" />
-        </div>
-        <div class="form-group form-span-2">
-          <label>Course Title</label>
-          <input type="text" id="course-title" placeholder="National Service Training Program" />
-        </div>
-        <div class="form-group form-span-2">
-          <label>Instructor Name</label>
-          <input type="text" id="course-instructor" placeholder="Sgt. Juan Dela Cruz" />
-        </div>
+        <div class="form-group"><label>Course Code *</label><input type="text" id="cm-code" placeholder="NSTP101"/></div>
+        <div class="form-group"><label>Units</label><input type="number" id="cm-units" placeholder="3"/></div>
+        <div class="form-group form-span-2"><label>Course Title *</label><input type="text" id="cm-title" placeholder="National Service Training Program"/></div>
+        <div class="form-group form-span-2"><label>Instructor</label><input type="text" id="cm-instructor" placeholder="Sgt. Juan Dela Cruz"/></div>
+        <div class="form-group"><label>Status</label><select id="cm-status"><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn-sm btn-outline" onclick="closeModal('course-modal')">Cancel</button>
-      <button class="btn-sm btn-gold" onclick="saveCourse()">Save Course</button>
+      <button class="btn btn-outline" onclick="closeModal('course-modal')">Cancel</button>
+      <button class="btn btn-gold" onclick="saveCourse()">Save Course</button>
     </div>
   </div>
 </div>
 
-<!-- Log Violation -->
-<div class="modal-overlay" id="violation-modal">
+<!-- VIOLATION MODAL -->
+<div class="modal-overlay" id="viol-modal">
   <div class="modal">
-    <div class="modal-header">
-      <div class="modal-title">Log Disciplinary Violation</div>
-      <button class="modal-close" onclick="closeModal('violation-modal')">×</button>
-    </div>
+    <div class="modal-header"><div class="modal-title">Log Disciplinary Violation</div><button class="modal-close" onclick="closeModal('viol-modal')">×</button></div>
     <div class="modal-body">
+      <input type="hidden" id="vm-id"/>
       <div class="form-grid">
-        <div class="form-group">
-          <label>Cadet ID</label>
-          <input type="text" id="viol-id" placeholder="SMC-2025-001" />
+        <div class="form-group"><label>Cadet *</label><select id="vm-cadet"><option value="">— Select Cadet —</option></select></div>
+        <div class="form-group"><label>Date of Incident</label><input type="date" id="vm-date"/></div>
+        <div class="form-group form-span-2"><label>Violation Type *</label>
+          <select id="vm-type"><option>Tardiness</option><option>Uniform Violation</option><option>AWOL</option><option>Insubordination</option><option>Academic Dishonesty</option><option>Disrespect</option><option>Other</option></select>
         </div>
-        <div class="form-group">
-          <label>Date of Incident</label>
-          <input type="date" id="viol-date" />
-        </div>
-        <div class="form-group form-span-2">
-          <label>Violation Type</label>
-          <select id="viol-type">
-            <option>Tardiness</option>
-            <option>Uniform Violation</option>
-            <option>AWOL</option>
-            <option>Insubordination</option>
-            <option>Academic Dishonesty</option>
-            <option>Other</option>
-          </select>
-        </div>
-        <div class="form-group form-span-2">
-          <label>Description / Notes</label>
-          <textarea id="viol-notes" placeholder="Describe the incident..."></textarea>
-        </div>
+        <div class="form-group form-span-2"><label>Description / Notes</label><textarea id="vm-notes" placeholder="Describe the incident…"></textarea></div>
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn-sm btn-outline" onclick="closeModal('violation-modal')">Cancel</button>
-      <button class="btn-sm btn-gold" onclick="saveViolation()">Log Violation</button>
+      <button class="btn btn-outline" onclick="closeModal('viol-modal')">Cancel</button>
+      <button class="btn btn-gold" onclick="saveViolation()">Log Violation</button>
     </div>
   </div>
 </div>
 
-<!-- Add User -->
+<!-- USER MODAL -->
 <div class="modal-overlay" id="user-modal">
   <div class="modal">
-    <div class="modal-header">
-      <div class="modal-title">Add System User</div>
-      <button class="modal-close" onclick="closeModal('user-modal')">×</button>
-    </div>
+    <div class="modal-header"><div class="modal-title" id="user-modal-title">Add System User</div><button class="modal-close" onclick="closeModal('user-modal')">×</button></div>
     <div class="modal-body">
-      <div class="form-group">
-        <label>Full Name</label>
-        <input type="text" id="user-name" placeholder="Juan Dela Cruz" />
-      </div>
-      <div class="form-group">
-        <label>Email</label>
-        <input type="email" id="user-email" placeholder="user@smc.edu.ph" />
-      </div>
-      <div class="form-group">
-        <label>Role</label>
-        <select id="user-role">
+      <input type="hidden" id="um-id"/>
+      <div class="form-group" style="margin-bottom:14px"><label>Full Name *</label><input type="text" id="um-name" placeholder="Juan Dela Cruz"/></div>
+      <div class="form-group" style="margin-bottom:14px"><label>Email *</label><input type="email" id="um-email" placeholder="user@smc.edu.ph"/></div>
+      <div class="form-group" style="margin-bottom:14px"><label>Role *</label>
+        <select id="um-role" onchange="toggleCadetField()">
           <option value="administrator">Administrator</option>
           <option value="registrar">Registrar</option>
           <option value="instructor">Instructor</option>
-          <option value="cadet">Cadet (View Only)</option>
+          <option value="cadet">Cadet</option>
         </select>
       </div>
-      <div class="form-group">
-        <label>Temporary Password</label>
-        <input type="password" id="user-pass" placeholder="••••••••" />
+      <div class="form-group" id="um-cadet-field" style="display:none;margin-bottom:14px"><label>Linked Cadet ID</label>
+        <select id="um-cadet-id"><option value="">— Select Cadet —</option></select>
       </div>
+      <div class="form-group" id="um-pass-field" style="margin-bottom:14px"><label>Password *</label><input type="password" id="um-pass" placeholder="Minimum 6 characters"/></div>
     </div>
     <div class="modal-footer">
-      <button class="btn-sm btn-outline" onclick="closeModal('user-modal')">Cancel</button>
-      <button class="btn-sm btn-gold" onclick="saveUser()">Create User</button>
+      <button class="btn btn-outline" onclick="closeModal('user-modal')">Cancel</button>
+      <button class="btn btn-gold" onclick="saveUser()">Create Account</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM DELETE -->
+<div class="modal-overlay" id="confirm-modal">
+  <div class="modal modal-sm">
+    <div class="modal-body" style="padding:32px 28px">
+      <div class="confirm-icon">🗑️</div>
+      <div class="confirm-msg" id="confirm-msg">Are you sure you want to delete this record?</div>
+      <div class="confirm-sub" id="confirm-sub">This action cannot be undone.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('confirm-modal')">Cancel</button>
+      <button class="btn btn-danger" id="confirm-btn" onclick="">Delete</button>
     </div>
   </div>
 </div>
 
 <!-- TOAST -->
-<div id="toast">
-  <span id="toast-icon">✅</span>
-  <span id="toast-msg">Operation successful.</span>
-</div>
+<div id="toast"><span id="toast-icon">✅</span><span id="toast-msg">Done.</span></div>
 
-<!-- ══════════════════════════════════════
-     JAVASCRIPT
-═══════════════════════════════════════ -->
 <script>
-/* ── SUPABASE CONFIG ─────────────────────────────────
-   Replace with your actual Supabase project credentials.
-   Or configure them via Settings > Supabase fields.
-──────────────────────────────────────────────────── */
+/* ══════════════════════════════════════
+   CONFIG & SUPABASE
+══════════════════════════════════════ */
 const SUPABASE_URL  = 'https://eglfvisxzfdqnasypwtv.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVnbGZ2aXN4emZkcW5hc3lwd3R2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4MTc0MTEsImV4cCI6MjA5MzM5MzQxMX0.59GGn05-bHC_0tstWNLs_-Vsdy-y58f_zcoMi5q7vUw';
 
+const IS_DEMO = SUPABASE_URL.includes('YOUR_PROJECT') || SUPABASE_ANON.includes('YOUR_ANON');
 let sbClient = null;
-
-function initSupabase(url, key) {
-  try {
-    sbClient = window.supabase.createClient(url || SUPABASE_URL, key || SUPABASE_ANON);
-    return true;
-  } catch(e) {
-    console.warn('Supabase init failed:', e.message);
-    return false;
-  }
-}
-
-// ── DEMO DATA (shown when Supabase not yet configured) ──
-const DEMO_CADETS = [
-  { cadet_id: 'SMC-2025-001', last_name: 'Dela Cruz', first_name: 'Juan', course: 'BS Criminology', year_level: '2nd Year', status: 'active' },
-  { cadet_id: 'SMC-2025-002', last_name: 'Santos',    first_name: 'Maria', course: 'BS Criminal Justice', year_level: '1st Year', status: 'active' },
-  { cadet_id: 'SMC-2025-003', last_name: 'Reyes',     first_name: 'Carlos', course: 'ROTC Program', year_level: '3rd Year', status: 'irregular' },
-  { cadet_id: 'SMC-2025-004', last_name: 'Garcia',    first_name: 'Ana', course: 'BS Criminology', year_level: '4th Year', status: 'active' },
-];
-const DEMO_GRADES = [
-  { cadet_id: 'SMC-2025-001', name: 'Dela Cruz, Juan', course: 'NSTP101', term: 'final', prelim: 88, midterm: 90, final_grade: 92, computed: 90.0, remarks: 'Passed' },
-  { cadet_id: 'SMC-2025-002', name: 'Santos, Maria', course: 'CMT201', term: 'final', prelim: 75, midterm: 78, final_grade: 80, computed: 77.7, remarks: 'Passed' },
-  { cadet_id: 'SMC-2025-003', name: 'Reyes, Carlos', course: 'ROTC101', term: 'midterm', prelim: 65, midterm: 70, final_grade: null, computed: null, remarks: 'Ongoing' },
-  { cadet_id: 'SMC-2025-004', name: 'Garcia, Ana', course: 'CRIM101', term: 'final', prelim: 95, midterm: 92, final_grade: 97, computed: 94.7, remarks: 'Passed' },
-];
-const DEMO_VIOLATIONS = [
-  { date: '2025-03-12', cadet_id: 'SMC-2025-003', name: 'Reyes, Carlos', type: 'Tardiness', tier: 1, logged_by: 'Sgt. Admin', status: 'Active' },
-  { date: '2025-04-01', cadet_id: 'SMC-2025-003', name: 'Reyes, Carlos', type: 'AWOL', tier: 2, logged_by: 'Admin User', status: 'Probation' },
-];
-const DEMO_COURSES = [
-  { code: 'NSTP101', title: 'Nat\'l Service Training Program', units: 3, instructor: 'Sgt. Pedro Bautista', enrolled: 45, status: 'active' },
-  { code: 'CMT201',  title: 'Citizens Military Training', units: 3, instructor: 'Lt. Rosa Lim', enrolled: 32, status: 'active' },
-  { code: 'ROTC101', title: 'Reserve Officers Training Corps', units: 3, instructor: 'Maj. Jose Rizal', enrolled: 28, status: 'active' },
-  { code: 'CRIM101', title: 'Introduction to Criminology', units: 3, instructor: 'Dr. Maria Santos', enrolled: 60, status: 'active' },
-];
-
-// ── AUTH STATE ─────────────────────────────────────
 let currentUser = null;
+let editingViolId = null;
+let editingUserId = null;
 
-async function handleLogin() {
-  const email = document.getElementById('login-email').value.trim();
-  const pass  = document.getElementById('login-password').value;
-  const role  = document.getElementById('login-role').value;
-  const btn   = document.getElementById('login-btn');
-  const err   = document.getElementById('login-error');
+function initSB(url, key){
+  try{ sbClient = window.supabase.createClient(url||SUPABASE_URL, key||SUPABASE_ANON); return true; }
+  catch(e){ console.warn('SB init failed',e); return false; }
+}
 
-  if (!email || !pass) {
-    showLoginError('Please enter your email and password.');
-    return;
+/* ── DEMO DATA ── */
+const DEMO_CADETS=[
+  {id:'d1',cadet_id:'SMC-2025-001',last_name:'Dela Cruz',first_name:'Juan',course:'BS Criminology',year_level:'2nd Year',section:'Alpha',status:'active',notes:'',email:'juan@smc.edu.ph'},
+  {id:'d2',cadet_id:'SMC-2025-002',last_name:'Santos',first_name:'Maria',course:'BS Criminal Justice',year_level:'1st Year',section:'Bravo',status:'active',notes:'',email:'maria@smc.edu.ph'},
+  {id:'d3',cadet_id:'SMC-2025-003',last_name:'Reyes',first_name:'Carlos',course:'ROTC Program',year_level:'3rd Year',section:'Charlie',status:'irregular',notes:'Flagged'},
+  {id:'d4',cadet_id:'SMC-2025-004',last_name:'Garcia',first_name:'Ana',course:'BS Criminology',year_level:'4th Year',section:'Alpha',status:'active',notes:''},
+];
+const DEMO_GRADES=[
+  {id:'g1',cadet_id:'SMC-2025-001',name:'Dela Cruz, Juan',course:'NSTP101',term:'final',prelim:88,midterm:90,final_grade:92,computed:90.0,remarks:'Passed'},
+  {id:'g2',cadet_id:'SMC-2025-002',name:'Santos, Maria',course:'CMT201',term:'final',prelim:75,midterm:78,final_grade:80,computed:77.7,remarks:'Passed'},
+  {id:'g3',cadet_id:'SMC-2025-003',name:'Reyes, Carlos',course:'ROTC101',term:'midterm',prelim:65,midterm:70,final_grade:null,computed:null,remarks:'Ongoing'},
+  {id:'g4',cadet_id:'SMC-2025-004',name:'Garcia, Ana',course:'CRIM101',term:'final',prelim:95,midterm:92,final_grade:97,computed:94.7,remarks:'Passed'},
+];
+const DEMO_VIOLATIONS=[
+  {id:'v1',date:'2025-03-12',cadet_id:'SMC-2025-003',name:'Reyes, Carlos',type:'Tardiness',tier:1,logged_by:'Admin',status:'Warning',notes:''},
+  {id:'v2',date:'2025-04-01',cadet_id:'SMC-2025-003',name:'Reyes, Carlos',type:'AWOL',tier:2,logged_by:'Admin',status:'Probation',notes:'Absent without leave'},
+];
+const DEMO_COURSES=[
+  {id:'c1',code:'NSTP101',title:'Nat\'l Service Training Program',units:3,instructor:'Sgt. Pedro Bautista',enrolled:45,status:'active'},
+  {id:'c2',code:'CMT201',title:'Citizens Military Training',units:3,instructor:'Lt. Rosa Lim',enrolled:32,status:'active'},
+  {id:'c3',code:'ROTC101',title:'Reserve Officers Training Corps',units:3,instructor:'Maj. Jose Rizal',enrolled:28,status:'active'},
+  {id:'c4',code:'CRIM101',title:'Introduction to Criminology',units:3,instructor:'Dr. Maria Santos',enrolled:60,status:'active'},
+];
+const DEMO_USERS=[
+  {id:'u1',name:'Admin User',email:'admin@smc.edu.ph',role:'administrator',cadet_id:null,created:'2025-01-01'},
+  {id:'u2',name:'Registrar Office',email:'registrar@smc.edu.ph',role:'registrar',cadet_id:null,created:'2025-01-02'},
+  {id:'u3',name:'Dela Cruz, Juan',email:'juan@smc.edu.ph',role:'cadet',cadet_id:'SMC-2025-001',created:'2025-01-10'},
+];
+const DEMO_AUDIT=[];
+
+/* ══════════════════════════════════════
+   AUTH
+══════════════════════════════════════ */
+async function handleLogin(){
+  const email=document.getElementById('l-email').value.trim();
+  const pass=document.getElementById('l-pass').value;
+  const role=document.getElementById('l-role').value;
+  const btn=document.getElementById('l-btn');
+  const err=document.getElementById('l-err');
+  if(!email||!pass){showAuthError('l-err','Please enter email and password.');return;}
+  btn.textContent='Signing in…';btn.disabled=true;err.classList.remove('show');
+  if(IS_DEMO){
+    currentUser={email,role,name:email.split('@')[0],cadet_id:role==='cadet'?'SMC-2025-001':null};
+    enterApp();btn.textContent='Sign In to Portal';btn.disabled=false;return;
   }
-
-  btn.textContent = 'Signing in…';
-  btn.disabled = true;
-  err.classList.remove('show');
-
-  // If no real Supabase credentials, go straight to demo mode
-  const isDemo = SUPABASE_URL.includes('YOUR_PROJECT') || SUPABASE_ANON.includes('YOUR_ANON');
-  if (isDemo) {
-    currentUser = { email, role, name: email.split('@')[0] };
+  try{
+    initSB();
+    const{data,error}=await sbClient.auth.signInWithPassword({email,password:pass});
+    if(error){showAuthError('l-err',error.message);btn.textContent='Sign In to Portal';btn.disabled=false;return;}
+    const meta=data.user.user_metadata||{};
+    currentUser={email:data.user.email,role:meta.role||role,name:meta.name||email.split('@')[0],cadet_id:meta.cadet_id||null,uid:data.user.id};
+    await logAction('LOGIN','auth',data.user.id,`${currentUser.name} signed in`);
     enterApp();
-    btn.textContent = 'Sign In to Portal';
-    btn.disabled = false;
-    return;
+  }catch(e){showAuthError('l-err','Connection error. Please try again.');}
+  btn.textContent='Sign In to Portal';btn.disabled=false;
+}
+
+async function handleForgot(){
+  const email=document.getElementById('f-email').value.trim();
+  if(!email){showAuthError('f-err','Please enter your email.');return;}
+  document.getElementById('f-err').classList.remove('show');
+  if(IS_DEMO){document.getElementById('f-ok').classList.add('show');return;}
+  try{
+    initSB();
+    const{error}=await sbClient.auth.resetPasswordForEmail(email,{redirectTo:window.location.href});
+    if(error){showAuthError('f-err',error.message);}
+    else{document.getElementById('f-ok').classList.add('show');}
+  }catch(e){showAuthError('f-err','Failed to send reset link.');}
+}
+
+async function handleLogout(){
+  if(sbClient&&!IS_DEMO) await sbClient.auth.signOut();
+  currentUser=null;
+  document.getElementById('app').style.display='none';
+  showLogin();
+}
+
+async function checkSession(){
+  if(IS_DEMO) return;
+  initSB();
+  const{data:{session}}=await sbClient.auth.getSession();
+  if(session){
+    const meta=session.user.user_metadata||{};
+    currentUser={email:session.user.email,role:meta.role||'cadet',name:meta.name||session.user.email.split('@')[0],cadet_id:meta.cadet_id||null,uid:session.user.id};
+    enterApp();
   }
+}
 
-  // Real Supabase auth
-  try {
-    initSupabase();
-    const { data, error } = await sbClient.auth.signInWithPassword({ email, password: pass });
-    if (!error && data?.user) {
-      currentUser = { email: data.user.email, role, name: data.user.email.split('@')[0] };
-      enterApp();
-    } else {
-      showLoginError(error?.message || 'Invalid credentials.');
-    }
-  } catch(e) {
-    showLoginError('Connection error. Please try again.');
+function showLogin(){document.getElementById('login-screen').style.display='flex';document.getElementById('forgot-screen').style.display='none';}
+function showForgot(){document.getElementById('login-screen').style.display='none';document.getElementById('forgot-screen').style.display='flex';}
+function showAuthError(id,msg){const el=document.getElementById(id);el.textContent=msg;el.classList.add('show');}
+
+/* ══════════════════════════════════════
+   APP INIT & ROLE UI
+══════════════════════════════════════ */
+function enterApp(){
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('forgot-screen').style.display='none';
+  document.getElementById('app').style.display='flex';
+  setupRoleUI();
+  nav('dashboard',null);
+  loadDashboard();
+}
+
+function setupRoleUI(){
+  const role=currentUser.role;
+  const initials=(currentUser.name||currentUser.email).substring(0,2).toUpperCase();
+  document.getElementById('sb-avatar').textContent=initials;
+  document.getElementById('sb-name').textContent=currentUser.name||currentUser.email;
+  const rp=document.getElementById('sb-role-pill');
+  rp.textContent=cap(role);
+  rp.className='role-pill role-'+role;
+
+  // Show/hide nav items and sections based on role
+  document.querySelectorAll('[data-roles]').forEach(el=>{
+    const roles=el.getAttribute('data-roles').split(',');
+    el.style.display=roles.includes(role)?'':'none';
+  });
+  // Dashboard cards
+  document.querySelectorAll('.op-card[data-roles]').forEach(el=>{
+    const roles=el.getAttribute('data-roles').split(',');
+    el.style.display=roles.includes(role)?'':'none';
+  });
+  // Stats row - hide for cadet
+  if(role==='cadet'||role==='instructor'){
+    document.getElementById('dash-stats-row').style.display='none';
   }
-
-  btn.textContent = 'Sign In to Portal';
-  btn.disabled = false;
 }
 
-function demoAuth(email, pass, role) {
-  // Demo: accept any credentials
-  currentUser = { email, role, name: 'Admin User' };
-  return true;
-}
+/* ══════════════════════════════════════
+   NAVIGATION
+══════════════════════════════════════ */
+const PAGE_LABELS={dashboard:'Dashboard',cadets:'Cadet Roster',enroll:'Enroll Cadet',
+  courses:'Courses',grades:'Grading System','encode-grade':'Encode Grades',
+  reports:'Reports & Transcripts',violations:'Violations Log',users:'User Management',
+  audit:'Audit Log','my-grades':'My Grades','my-profile':'My Profile',settings:'Settings'};
 
-function showLoginError(msg) {
-  const err = document.getElementById('login-error');
-  err.textContent = msg;
-  err.classList.add('show');
-}
-
-function enterApp() {
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('app').classList.add('active');
-
-  const initials = (currentUser.email || 'AU').substring(0,2).toUpperCase();
-  document.getElementById('sidebar-avatar').textContent = initials;
-  document.getElementById('sidebar-name').textContent = currentUser.name || currentUser.email;
-  document.getElementById('sidebar-role').textContent = capitalize(currentUser.role);
-
-  loadPage('dashboard');
-  loadDemoStats();
-}
-
-function handleLogout() {
-  if (sbClient) sbClient.auth.signOut();
-  currentUser = null;
-  document.getElementById('login-screen').style.display = 'flex';
-  document.getElementById('app').classList.remove('active');
-}
-
-// ── NAVIGATION ───────────────────────────────────────
-const PAGE_LABELS = {
-  dashboard: 'Dashboard', cadets: 'Cadet Roster', enroll: 'Enroll Cadet',
-  courses: 'Courses', grades: 'Grading System', 'encode-grade': 'Encode Grades',
-  violations: 'Violations Log', reports: 'Reports', users: 'User Management', settings: 'Settings'
+const ROLE_PAGES={
+  administrator:['dashboard','cadets','enroll','courses','grades','encode-grade','reports','violations','users','audit','settings'],
+  registrar:['dashboard','cadets','enroll','courses','grades','encode-grade','reports','violations'],
+  instructor:['dashboard','grades','encode-grade','my-profile'],
+  cadet:['dashboard','my-grades','my-profile'],
 };
 
-function navigate(page, navEl) {
-  // Update active nav
-  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-  if (navEl) navEl.classList.add('active');
-  else {
-    document.querySelectorAll('.nav-item').forEach(el => {
-      if (el.textContent.trim().toLowerCase().includes(page)) el.classList.add('active');
-    });
-  }
-  loadPage(page);
+function nav(page,navEl){
+  const allowed=ROLE_PAGES[currentUser?.role]||[];
+  if(!allowed.includes(page)){showToast('Access denied for your role.','error');return;}
+  document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
+  if(navEl) navEl.classList.add('active');
+  else document.querySelectorAll('.nav-item').forEach(el=>{if(el.dataset.page===page)el.classList.add('active');});
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  const pg=document.getElementById('page-'+page);
+  if(pg) pg.classList.add('active');
+  document.getElementById('bc-label').textContent=PAGE_LABELS[page]||page;
+
+  if(page==='cadets') loadCadets();
+  if(page==='grades') loadGrades();
+  if(page==='violations') loadViolations();
+  if(page==='courses') loadCourses();
+  if(page==='users') loadUsers();
+  if(page==='audit') loadAudit();
+  if(page==='encode-grade') loadEncodeDropdowns();
+  if(page==='my-grades') loadMyGrades();
+  if(page==='my-profile') loadMyProfile();
+  if(page==='viol-modal') populateCadetDropdown('vm-cadet');
 }
 
-function loadPage(page) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  const target = document.getElementById('page-' + page);
-  if (target) target.classList.add('active');
-  document.getElementById('breadcrumb-label').textContent = PAGE_LABELS[page] || page;
-
-  // Load data for the page
-  if (page === 'cadets')     loadCadets();
-  if (page === 'grades')     loadGrades();
-  if (page === 'violations') loadViolations();
-  if (page === 'courses')    loadCourses();
+/* ══════════════════════════════════════
+   DASHBOARD
+══════════════════════════════════════ */
+async function loadDashboard(){
+  let cadets=DEMO_CADETS.length,grades=DEMO_GRADES.length,viols=DEMO_VIOLATIONS.length,courses=DEMO_COURSES.length;
+  if(sbClient&&!IS_DEMO){
+    try{
+      const[rc,rg,rv,rco]=await Promise.all([
+        sbClient.from('cadets').select('*',{count:'exact',head:true}),
+        sbClient.from('grades').select('*',{count:'exact',head:true}),
+        sbClient.from('violations').select('*',{count:'exact',head:true}),
+        sbClient.from('courses').select('*',{count:'exact',head:true}),
+      ]);
+      if(rc.count!=null) cadets=rc.count;
+      if(rg.count!=null) grades=rg.count;
+      if(rv.count!=null) viols=rv.count;
+      if(rco.count!=null) courses=rco.count;
+    }catch(e){}
+  }
+  setText('ds-cadets',cadets);setText('ds-courses',courses);
+  setText('ds2-cadets',cadets);setText('ds2-viols',viols);
+  setText('ds2-grades',grades);setText('ds2-courses',courses);
 }
 
-// ── AUTO-COMPUTE GRADE ─────────────────────────────
-document.addEventListener('input', (e) => {
-  if (['grade-prelim','grade-midterm','grade-final'].includes(e.target.id)) {
-    const p = parseFloat(document.getElementById('grade-prelim').value) || 0;
-    const m = parseFloat(document.getElementById('grade-midterm').value) || 0;
-    const f = parseFloat(document.getElementById('grade-final').value) || 0;
-    const computed = ((p * 0.3) + (m * 0.3) + (f * 0.4)).toFixed(2);
-    document.getElementById('grade-computed').value = isNaN(computed) ? '' : computed + '%';
-  }
-});
-
-// ── DATA LOADERS ─────────────────────────────────────
-async function loadDemoStats() {
-  document.getElementById('stat-cadets').textContent = DEMO_CADETS.length;
-  document.getElementById('stat-courses').textContent = DEMO_COURSES.length;
-}
-
-async function loadCadets() {
-  let data = DEMO_CADETS;
-  if (sbClient && !SUPABASE_URL.includes('YOUR_PROJECT')) {
-    const { data: res } = await sbClient.from('cadets').select('*').order('last_name');
-    if (res) data = res;
-  }
-  const tbody = document.getElementById('cadet-tbody');
-  if (!data.length) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">No cadets enrolled yet.</td></tr>`; return; }
-  tbody.innerHTML = data.map(c => `
+/* ══════════════════════════════════════
+   CADETS CRUD
+══════════════════════════════════════ */
+async function loadCadets(){
+  let data=DEMO_CADETS;
+  if(sbClient&&!IS_DEMO){const{data:r}=await sbClient.from('cadets').select('*').order('last_name');if(r)data=r;}
+  const tbody=document.getElementById('cadet-tbody');
+  if(!data.length){tbody.innerHTML=`<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">No cadets enrolled yet.</td></tr>`;return;}
+  tbody.innerHTML=data.map(c=>`
     <tr data-search="${(c.last_name+' '+c.first_name+' '+c.cadet_id).toLowerCase()}">
       <td class="td-mono">${c.cadet_id}</td>
       <td><strong>${c.last_name}</strong>, ${c.first_name}</td>
-      <td>${c.course}</td>
-      <td>${c.year_level}</td>
-      <td>${statusBadge(c.status)}</td>
-      <td>
-        <button class="btn-sm btn-outline" style="padding:5px 10px;font-size:11px;" onclick="showToast('Loading cadet record…','success')">View</button>
-      </td>
+      <td>${c.course||'—'}</td><td>${c.year_level||'—'}</td><td>${c.section||'—'}</td>
+      <td>${sBadge(c.status)}</td>
+      <td><div class="td-actions">
+        <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" onclick="openEditCadet('${c.id}')">Edit</button>
+        <button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="confirmDelete('Delete cadet ${c.cadet_id}?','All grades and violations linked to this cadet may be affected.',()=>deleteCadet('${c.id}','${c.cadet_id}'))">Delete</button>
+      </div></td>
     </tr>`).join('');
 }
 
-async function loadGrades() {
-  let data = DEMO_GRADES;
-  if (sbClient && !SUPABASE_URL.includes('YOUR_PROJECT')) {
-    const { data: res } = await sbClient.from('grades').select('*');
-    if (res) data = res;
+async function enrollCadet(){
+  const payload={cadet_id:v('e-id'),last_name:v('e-lname'),first_name:v('e-fname'),
+    middle_name:v('e-mname'),gender:v('e-gender'),course:v('e-course'),
+    year_level:v('e-year'),section:v('e-section'),status:v('e-status'),
+    notes:v('e-notes'),email:v('e-email')};
+  if(!payload.cadet_id||!payload.last_name||!payload.first_name){showToast('Cadet ID, first and last name are required.','error');return;}
+  if(sbClient&&!IS_DEMO){
+    const{error}=await sbClient.from('cadets').insert([payload]);
+    if(error){showToast('Error: '+error.message,'error');return;}
+  }else{DEMO_CADETS.push({...payload,id:'d'+Date.now()});}
+  await logAction('CREATE','cadets',payload.cadet_id,`Enrolled ${payload.first_name} ${payload.last_name}`);
+  showToast('Cadet enrolled successfully.','success');
+  nav('cadets',null);
+}
+
+function openEditCadet(id){
+  const c=DEMO_CADETS.find(x=>x.id===id)||(sbClient?null:null);
+  if(!c&&IS_DEMO){showToast('Record not found.','error');return;}
+  const rec=c||{};
+  setVal('ec-id',id);setVal('ec-cadet-id',rec.cadet_id||'');setVal('ec-lname',rec.last_name||'');
+  setVal('ec-fname',rec.first_name||'');setVal('ec-course',rec.course||'');
+  setVal('ec-year',rec.year_level||'1st Year');setVal('ec-section',rec.section||'');
+  setVal('ec-notes',rec.notes||'');setVal('ec-status',rec.status||'active');
+  openModal('edit-cadet-modal');
+}
+
+async function openEditCadetFromDB(id){
+  if(sbClient&&!IS_DEMO){
+    const{data}=await sbClient.from('cadets').select('*').eq('id',id).single();
+    if(data){
+      setVal('ec-id',id);setVal('ec-cadet-id',data.cadet_id);setVal('ec-lname',data.last_name);
+      setVal('ec-fname',data.first_name);setVal('ec-course',data.course);
+      setVal('ec-year',data.year_level);setVal('ec-section',data.section||'');
+      setVal('ec-notes',data.notes||'');setVal('ec-status',data.status);
+      openModal('edit-cadet-modal');
+    }
+  }else{openEditCadet(id);}
+}
+
+async function updateCadet(){
+  const id=v('ec-id');
+  const payload={last_name:v('ec-lname'),first_name:v('ec-fname'),course:v('ec-course'),
+    year_level:v('ec-year'),section:v('ec-section'),notes:v('ec-notes'),status:v('ec-status')};
+  if(sbClient&&!IS_DEMO){
+    const{error}=await sbClient.from('cadets').update(payload).eq('id',id);
+    if(error){showToast('Error: '+error.message,'error');return;}
+  }else{const i=DEMO_CADETS.findIndex(x=>x.id===id);if(i>=0)Object.assign(DEMO_CADETS[i],payload);}
+  await logAction('UPDATE','cadets',v('ec-cadet-id'),`Updated ${payload.first_name} ${payload.last_name}`);
+  closeModal('edit-cadet-modal');showToast('Cadet record updated.','success');loadCadets();
+}
+
+async function deleteCadet(id,cadetId){
+  if(sbClient&&!IS_DEMO){
+    const{error}=await sbClient.from('cadets').delete().eq('id',id);
+    if(error){showToast('Error: '+error.message,'error');return;}
+  }else{const i=DEMO_CADETS.findIndex(x=>x.id===id);if(i>=0)DEMO_CADETS.splice(i,1);}
+  await logAction('DELETE','cadets',cadetId,'Cadet record deleted');
+  closeModal('confirm-modal');showToast('Cadet deleted.','success');loadCadets();loadDashboard();
+}
+
+/* ══════════════════════════════════════
+   COURSES CRUD
+══════════════════════════════════════ */
+async function loadCourses(){
+  let data=DEMO_COURSES;
+  if(sbClient&&!IS_DEMO){const{data:r}=await sbClient.from('courses').select('*');if(r)data=r;}
+  const tbody=document.getElementById('course-tbody');
+  tbody.innerHTML=data.map(c=>`
+    <tr>
+      <td class="td-mono">${c.code}</td><td>${c.title}</td>
+      <td class="td-mono">${c.units}</td><td>${c.instructor||'—'}</td>
+      <td class="td-mono">${c.enrolled||0}</td><td>${sBadge(c.status)}</td>
+      <td><div class="td-actions">
+        <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" onclick="openEditCourse('${c.id}')">Edit</button>
+        <button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="confirmDelete('Delete course ${c.code}?','',()=>deleteCourse('${c.id}','${c.code}'))">Delete</button>
+      </div></td>
+    </tr>`).join('');
+}
+
+function openEditCourse(id){
+  const c=DEMO_COURSES.find(x=>x.id===id);
+  if(c){
+    setVal('cm-id',id);setVal('cm-code',c.code);setVal('cm-title',c.title);
+    setVal('cm-units',c.units);setVal('cm-instructor',c.instructor||'');setVal('cm-status',c.status);
+    document.getElementById('course-modal-title').textContent='Edit Course';
+    openModal('course-modal');
   }
-  const tbody = document.getElementById('grade-tbody');
-  tbody.innerHTML = data.map(g => {
-    const fg = g.computed ?? '—';
-    const gc = gradeClass(g.computed);
-    return `
-    <tr data-search="${(g.name+' '+g.cadet_id).toLowerCase()}">
-      <td class="td-mono">${g.cadet_id}</td>
-      <td>${g.name}</td>
+}
+
+function clearCourseForm(){setVal('cm-id','');setVal('cm-code','');setVal('cm-title','');setVal('cm-units','');setVal('cm-instructor','');}
+
+async function saveCourse(){
+  const id=v('cm-id');
+  const payload={code:v('cm-code').toUpperCase(),title:v('cm-title'),
+    units:parseInt(v('cm-units'))||3,instructor:v('cm-instructor'),status:v('cm-status')};
+  if(!payload.code||!payload.title){showToast('Course code and title required.','error');return;}
+  if(sbClient&&!IS_DEMO){
+    if(id){const{error}=await sbClient.from('courses').update(payload).eq('id',id);if(error){showToast('Error: '+error.message,'error');return;}}
+    else{const{error}=await sbClient.from('courses').insert([{...payload,enrolled:0}]);if(error){showToast('Error: '+error.message,'error');return;}}
+  }else{
+    if(id){const i=DEMO_COURSES.findIndex(x=>x.id===id);if(i>=0)Object.assign(DEMO_COURSES[i],payload);}
+    else DEMO_COURSES.push({...payload,id:'c'+Date.now(),enrolled:0});
+  }
+  await logAction(id?'UPDATE':'CREATE','courses',payload.code,`${id?'Updated':'Added'} course ${payload.code}`);
+  closeModal('course-modal');showToast('Course saved.','success');loadCourses();loadDashboard();
+}
+
+async function deleteCourse(id,code){
+  if(sbClient&&!IS_DEMO){const{error}=await sbClient.from('courses').delete().eq('id',id);if(error){showToast('Error: '+error.message,'error');return;}}
+  else{const i=DEMO_COURSES.findIndex(x=>x.id===id);if(i>=0)DEMO_COURSES.splice(i,1);}
+  await logAction('DELETE','courses',code,'Course deleted');
+  closeModal('confirm-modal');showToast('Course deleted.','success');loadCourses();
+}
+
+/* ══════════════════════════════════════
+   GRADES CRUD
+══════════════════════════════════════ */
+async function loadGrades(){
+  let data=DEMO_GRADES;
+  if(sbClient&&!IS_DEMO){const{data:r}=await sbClient.from('grades').select('*');if(r)data=r;}
+  const tbody=document.getElementById('grade-tbody');
+  tbody.innerHTML=data.map(g=>`
+    <tr data-search="${(g.name+' '+g.cadet_id+' '+g.course+' '+(g.term||'')).toLowerCase()}">
+      <td class="td-mono">${g.cadet_id}</td><td>${g.name||'—'}</td>
       <td class="td-mono">${g.course}</td>
-      <td><span class="badge badge-gray">${capitalize(g.term)}</span></td>
-      <td class="grade-cell ${gradeClass(g.prelim)}">${g.prelim ?? '—'}</td>
-      <td class="grade-cell ${gradeClass(g.midterm)}">${g.midterm ?? '—'}</td>
-      <td class="grade-cell ${gradeClass(g.final_grade)}">${g.final_grade ?? '—'}</td>
-      <td class="grade-cell ${gc}" style="font-weight:700">${fg !== '—' ? fg+'%' : '—'}</td>
-      <td>${remarksBadge(g.remarks)}</td>
-    </tr>`;
-  }).join('');
-}
-
-async function loadViolations() {
-  let data = DEMO_VIOLATIONS;
-  if (sbClient && !SUPABASE_URL.includes('YOUR_PROJECT')) {
-    const { data: res } = await sbClient.from('violations').select('*').order('date', {ascending: false});
-    if (res) data = res;
-  }
-  const tbody = document.getElementById('violation-tbody');
-  tbody.innerHTML = data.map(v => `
-    <tr>
-      <td class="td-mono">${v.date}</td>
-      <td class="td-mono">${v.cadet_id}</td>
-      <td>${v.name}</td>
-      <td>${v.type}</td>
-      <td>${tierBadge(v.tier)}</td>
-      <td style="color:var(--slate)">${v.logged_by}</td>
-      <td>${statusBadge(v.status?.toLowerCase())}</td>
+      <td><span class="badge badge-gray">${cap(g.term||'—')}</span></td>
+      <td class="grade-cell ${gClass(g.prelim)}">${g.prelim??'—'}</td>
+      <td class="grade-cell ${gClass(g.midterm)}">${g.midterm??'—'}</td>
+      <td class="grade-cell ${gClass(g.final_grade)}">${g.final_grade??'—'}</td>
+      <td class="grade-cell ${gClass(g.computed)}" style="font-weight:700">${g.computed!=null?g.computed+'%':'—'}</td>
+      <td>${rBadge(g.remarks)}</td>
+      <td><div class="td-actions">
+        <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" onclick="openEditGrade('${g.id}')">Edit</button>
+        <button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="confirmDelete('Delete this grade record?','',()=>deleteGrade('${g.id}','${g.cadet_id}'))">Delete</button>
+      </div></td>
     </tr>`).join('');
 }
 
-async function loadCourses() {
-  let data = DEMO_COURSES;
-  if (sbClient && !SUPABASE_URL.includes('YOUR_PROJECT')) {
-    const { data: res } = await sbClient.from('courses').select('*');
-    if (res) data = res;
+async function loadEncodeDropdowns(){
+  let cadets=DEMO_CADETS,courses=DEMO_COURSES;
+  if(sbClient&&!IS_DEMO){
+    const[rc,rco]=await Promise.all([sbClient.from('cadets').select('*').order('last_name'),sbClient.from('courses').select('*')]);
+    if(rc.data) cadets=rc.data;if(rco.data) courses=rco.data;
   }
-  const tbody = document.getElementById('course-tbody');
-  tbody.innerHTML = data.map(c => `
-    <tr>
-      <td class="td-mono">${c.code}</td>
-      <td>${c.title}</td>
-      <td class="td-mono">${c.units}</td>
-      <td>${c.instructor}</td>
-      <td class="td-mono">${c.enrolled}</td>
-      <td>${statusBadge(c.status)}</td>
-    </tr>`).join('');
+  const cs=document.getElementById('g-cadet');
+  cs.innerHTML='<option value="">— Select Cadet —</option>'+cadets.map(c=>`<option value="${c.cadet_id}">${c.last_name}, ${c.first_name} (${c.cadet_id})</option>`).join('');
+  const crs=document.getElementById('g-course');
+  crs.innerHTML='<option value="">— Select Course —</option>'+courses.map(c=>`<option value="${c.code}">${c.code} — ${c.title}</option>`).join('');
 }
 
-// ── SAVE OPERATIONS ────────────────────────────────
-async function enrollCadet() {
-  const payload = {
-    cadet_id:    document.getElementById('enroll-id').value.trim(),
-    last_name:   document.getElementById('enroll-lastname').value.trim(),
-    first_name:  document.getElementById('enroll-firstname').value.trim(),
-    course:      document.getElementById('enroll-course').value,
-    year_level:  document.getElementById('enroll-year').value + ' Year',
-    status:      document.getElementById('enroll-status').value,
-    notes:       document.getElementById('enroll-notes').value,
-  };
-  if (!payload.cadet_id || !payload.last_name) { showToast('Please fill in required fields.', 'error'); return; }
-
-  if (sbClient && !SUPABASE_URL.includes('YOUR_PROJECT')) {
-    const { error } = await sbClient.from('cadets').insert([payload]);
-    if (error) { showToast('Error: ' + error.message, 'error'); return; }
-  } else {
-    DEMO_CADETS.push(payload);
-  }
-  showToast('Cadet enrolled successfully.', 'success');
-  navigate('cadets', null);
+function computeGrade(){
+  const p=parseFloat(v('g-prelim'))||0,m=parseFloat(v('g-midterm'))||0,f=parseFloat(v('g-final'))||0;
+  const computed=((p*.3)+(m*.3)+(f*.4)).toFixed(2);
+  setVal('g-computed',computed+'%');
+}
+function computeEditGrade(){
+  const p=parseFloat(v('eg-prelim'))||0,m=parseFloat(v('eg-midterm'))||0,f=parseFloat(v('eg-final'))||0;
+  const computed=((p*.3)+(m*.3)+(f*.4)).toFixed(2);
+  setVal('eg-computed',computed+'%');
 }
 
-async function saveGrade() {
-  const p = parseFloat(document.getElementById('grade-prelim').value);
-  const m = parseFloat(document.getElementById('grade-midterm').value);
-  const f = parseFloat(document.getElementById('grade-final').value);
-  const computed = ((p*0.3)+(m*0.3)+(f*0.4));
-  const payload = {
-    cadet_id:    document.getElementById('grade-cadet-id').value.trim(),
-    course:      document.getElementById('grade-course').value,
-    term:        document.getElementById('grade-term').value,
-    sy:          document.getElementById('grade-sy').value,
-    prelim: p, midterm: m, final_grade: f, computed,
-    remarks:     document.getElementById('grade-remarks').value,
-  };
-  if (!payload.cadet_id || !payload.course) { showToast('Please fill in required fields.', 'error'); return; }
-
-  if (sbClient && !SUPABASE_URL.includes('YOUR_PROJECT')) {
-    const { error } = await sbClient.from('grades').insert([payload]);
-    if (error) { showToast('Error: ' + error.message, 'error'); return; }
-  } else {
-    DEMO_GRADES.push({ ...payload, name: payload.cadet_id });
-  }
-  showToast('Grade saved successfully.', 'success');
-  navigate('grades', null);
+async function saveGrade(){
+  const cadetId=v('g-cadet'),courseCode=v('g-course');
+  if(!cadetId||!courseCode){showToast('Please select a cadet and course.','error');return;}
+  const cadet=DEMO_CADETS.find(c=>c.cadet_id===cadetId)||{first_name:'',last_name:cadetId};
+  const p=parseFloat(v('g-prelim')),m=parseFloat(v('g-midterm')),f=parseFloat(v('g-final'));
+  const computed=parseFloat(((p||0)*.3+(m||0)*.3+(f||0)*.4).toFixed(2));
+  const payload={cadet_id:cadetId,name:`${cadet.last_name}, ${cadet.first_name}`,
+    course:courseCode,term:v('g-term'),sy:v('g-sy'),
+    prelim:isNaN(p)?null:p,midterm:isNaN(m)?null:m,final_grade:isNaN(f)?null:f,
+    computed:computed,remarks:v('g-remarks'),encoded_by:currentUser?.email};
+  if(sbClient&&!IS_DEMO){const{error}=await sbClient.from('grades').insert([payload]);if(error){showToast('Error: '+error.message,'error');return;}}
+  else DEMO_GRADES.push({...payload,id:'g'+Date.now()});
+  await logAction('CREATE','grades',cadetId,`Grade encoded for ${cadetId} — ${courseCode}`);
+  showToast('Grade saved.','success');nav('grades',null);
 }
 
-async function saveCourse() {
-  const payload = {
-    code:       document.getElementById('course-code').value.trim().toUpperCase(),
-    title:      document.getElementById('course-title').value.trim(),
-    units:      parseInt(document.getElementById('course-units').value),
-    instructor: document.getElementById('course-instructor').value.trim(),
-    enrolled:   0, status: 'active'
-  };
-  if (!payload.code || !payload.title) { showToast('Please fill in course code and title.', 'error'); return; }
-
-  if (sbClient && !SUPABASE_URL.includes('YOUR_PROJECT')) {
-    const { error } = await sbClient.from('courses').insert([payload]);
-    if (error) { showToast('Error: ' + error.message, 'error'); return; }
-  } else {
-    DEMO_COURSES.push(payload);
-  }
-  closeModal('course-modal');
-  showToast('Course added successfully.', 'success');
-  loadCourses();
+function openEditGrade(id){
+  const g=DEMO_GRADES.find(x=>x.id===id);
+  if(!g)return;
+  setVal('eg-id',id);setVal('eg-prelim',g.prelim??'');setVal('eg-midterm',g.midterm??'');
+  setVal('eg-final',g.final_grade??'');setVal('eg-computed',(g.computed??'')+'%');setVal('eg-remarks',g.remarks||'');
+  openModal('edit-grade-modal');
 }
 
-async function saveViolation() {
-  const cadetId = document.getElementById('viol-id').value.trim();
-  const existing = DEMO_VIOLATIONS.filter(v => v.cadet_id === cadetId);
-  const tier = existing.length + 1;
-  const payload = {
-    cadet_id: cadetId,
-    name: cadetId,
-    date: document.getElementById('viol-date').value || new Date().toISOString().split('T')[0],
-    type: document.getElementById('viol-type').value,
-    notes: document.getElementById('viol-notes').value,
-    logged_by: currentUser?.email || 'Admin',
-    tier,
-    status: tier === 1 ? 'Warning' : tier === 2 ? 'Probation' : 'Suspension',
-  };
-
-  if (sbClient && !SUPABASE_URL.includes('YOUR_PROJECT')) {
-    const { error } = await sbClient.from('violations').insert([payload]);
-    if (error) { showToast('Error: ' + error.message, 'error'); return; }
-  } else {
-    DEMO_VIOLATIONS.push(payload);
-  }
-  closeModal('violation-modal');
-  showToast('Violation logged.', 'success');
-  loadViolations();
+async function updateGrade(){
+  const id=v('eg-id');
+  const p=parseFloat(v('eg-prelim')),m=parseFloat(v('eg-midterm')),f=parseFloat(v('eg-final'));
+  const computed=parseFloat(((p||0)*.3+(m||0)*.3+(f||0)*.4).toFixed(2));
+  const payload={prelim:isNaN(p)?null:p,midterm:isNaN(m)?null:m,final_grade:isNaN(f)?null:f,computed,remarks:v('eg-remarks')};
+  if(sbClient&&!IS_DEMO){const{error}=await sbClient.from('grades').update(payload).eq('id',id);if(error){showToast('Error: '+error.message,'error');return;}}
+  else{const i=DEMO_GRADES.findIndex(x=>x.id===id);if(i>=0)Object.assign(DEMO_GRADES[i],payload);}
+  await logAction('UPDATE','grades',id,'Grade record updated');
+  closeModal('edit-grade-modal');showToast('Grade updated.','success');loadGrades();
 }
 
-async function saveUser() {
-  const email = document.getElementById('user-email').value.trim();
-  const name  = document.getElementById('user-name').value.trim();
-  const role  = document.getElementById('user-role').value;
-  const pass  = document.getElementById('user-pass').value;
-  if (!email || !pass) { showToast('Email and password required.', 'error'); return; }
-
-  if (sbClient && !SUPABASE_URL.includes('YOUR_PROJECT')) {
-    const { error } = await sbClient.auth.admin?.createUser({ email, password: pass, user_metadata: { role, name } });
-    if (error) { showToast('Error: ' + error.message, 'error'); return; }
-  }
-  closeModal('user-modal');
-  showToast('User created. They can now sign in.', 'success');
-  document.getElementById('user-tbody').innerHTML += `
-    <tr>
-      <td>${name}</td>
-      <td class="td-mono">${email}</td>
-      <td><span class="badge badge-blue">${capitalize(role)}</span></td>
-      <td class="td-mono">—</td>
-      <td><span class="badge badge-green">Active</span></td>
-    </tr>`;
+async function deleteGrade(id,cadetId){
+  if(sbClient&&!IS_DEMO){const{error}=await sbClient.from('grades').delete().eq('id',id);if(error){showToast('Error: '+error.message,'error');return;}}
+  else{const i=DEMO_GRADES.findIndex(x=>x.id===id);if(i>=0)DEMO_GRADES.splice(i,1);}
+  await logAction('DELETE','grades',cadetId,'Grade record deleted');
+  closeModal('confirm-modal');showToast('Grade deleted.','success');loadGrades();
 }
 
-function saveSettings() {
-  const url = document.getElementById('setting-sb-url').value.trim();
-  const key = document.getElementById('setting-sb-key').value.trim();
-  if (url && key) {
-    initSupabase(url, key);
-    showToast('Settings saved. Supabase connected.', 'success');
-  } else {
-    showToast('Settings saved.', 'success');
-  }
-}
-
-// ── UTILS ──────────────────────────────────────────
-function filterTable(tbodyId, query) {
-  const q = query.toLowerCase();
-  document.querySelectorAll(`#${tbodyId} tr`).forEach(tr => {
-    const txt = tr.dataset.search || tr.textContent.toLowerCase();
-    tr.style.display = txt.includes(q) ? '' : 'none';
-  });
-}
-
-function setFilter(el, term) {
-  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+function setGradeFilter(el,term){
+  document.querySelectorAll('.filter-chip').forEach(c=>c.classList.remove('active'));
   el.classList.add('active');
-  // Filter grade rows by term
-  document.querySelectorAll('#grade-tbody tr').forEach(tr => {
-    const txt = tr.textContent.toLowerCase();
-    tr.style.display = (term === 'all' || txt.includes(term)) ? '' : 'none';
+  document.querySelectorAll('#grade-tbody tr, #my-grade-tbody tr').forEach(tr=>{
+    const txt=tr.textContent.toLowerCase();
+    tr.style.display=(term==='all'||txt.includes(term))?'':'none';
   });
 }
 
-function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
-
-function statusBadge(s) {
-  const map = {
-    active: 'badge-green', irregular: 'badge-gold', 'on-leave': 'badge-gray',
-    warning: 'badge-gold', probation: 'badge-red', suspension: 'badge-red',
-  };
-  const cls = map[(s||'').toLowerCase()] || 'badge-gray';
-  return `<span class="badge ${cls}">${capitalize(s)}</span>`;
+/* ══════════════════════════════════════
+   VIOLATIONS CRUD
+══════════════════════════════════════ */
+async function loadViolations(){
+  let data=DEMO_VIOLATIONS;
+  if(sbClient&&!IS_DEMO){const{data:r}=await sbClient.from('violations').select('*').order('date',{ascending:false});if(r)data=r;}
+  const tbody=document.getElementById('viol-tbody');
+  tbody.innerHTML=data.map(v=>`
+    <tr data-search="${(v.name+' '+v.cadet_id+' '+v.type).toLowerCase()}">
+      <td class="td-mono">${v.date}</td><td class="td-mono">${v.cadet_id}</td>
+      <td>${v.name||'—'}</td><td>${v.type}</td><td>${tierBadge(v.tier)}</td>
+      <td>${sBadge(v.status?.toLowerCase())}</td>
+      <td style="color:var(--slate);font-size:12px">${v.logged_by||'—'}</td>
+      <td><button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="confirmDelete('Delete this violation record?','',()=>deleteViolation('${v.id}','${v.cadet_id}'))">Delete</button></td>
+    </tr>`).join('');
 }
 
-function tierBadge(tier) {
-  if (tier === 1) return `<span class="badge badge-gold">Warning</span>`;
-  if (tier === 2) return `<span class="badge badge-red">Probation</span>`;
-  return `<span class="badge badge-red" style="background:rgba(120,0,0,0.3);color:#ff6b6b">Suspension</span>`;
+async function populateCadetDropdown(selectId){
+  let cadets=DEMO_CADETS;
+  if(sbClient&&!IS_DEMO){const{data:r}=await sbClient.from('cadets').select('*').order('last_name');if(r)cadets=r;}
+  const sel=document.getElementById(selectId);
+  sel.innerHTML='<option value="">— Select Cadet —</option>'+cadets.map(c=>`<option value="${c.cadet_id}">${c.last_name}, ${c.first_name} (${c.cadet_id})</option>`).join('');
 }
 
-function remarksBadge(r) {
-  if (!r) return '—';
-  const map = { 'Passed': 'badge-green', 'Failed': 'badge-red', 'Ongoing': 'badge-blue', 'Incomplete': 'badge-gold' };
-  const cls = map[r] || 'badge-gray';
-  return `<span class="badge ${cls}">${r}</span>`;
+async function saveViolation(){
+  const cadetId=v('vm-cadet');
+  if(!cadetId){showToast('Please select a cadet.','error');return;}
+  const cadet=DEMO_CADETS.find(c=>c.cadet_id===cadetId)||{last_name:cadetId,first_name:''};
+  const existingCount=(IS_DEMO?DEMO_VIOLATIONS:DEMO_VIOLATIONS).filter(x=>x.cadet_id===cadetId).length;
+  const tier=existingCount+1;
+  const status=tier===1?'Warning':tier===2?'Probation':'Suspension';
+  const payload={cadet_id:cadetId,name:`${cadet.last_name}, ${cadet.first_name}`,
+    date:v('vm-date')||new Date().toISOString().split('T')[0],
+    type:v('vm-type'),notes:v('vm-notes'),logged_by:currentUser?.email||'Admin',tier,status};
+  if(sbClient&&!IS_DEMO){const{error}=await sbClient.from('violations').insert([payload]);if(error){showToast('Error: '+error.message,'error');return;}}
+  else DEMO_VIOLATIONS.push({...payload,id:'v'+Date.now()});
+  await logAction('CREATE','violations',cadetId,`Violation logged: ${payload.type} — Tier ${tier}`);
+  closeModal('viol-modal');showToast(`Violation logged. Status: ${status}`,'success');loadViolations();loadDashboard();
 }
 
-function gradeClass(v) {
-  if (v == null) return '';
-  if (v >= 90) return 'grade-a';
-  if (v >= 80) return 'grade-b';
-  if (v >= 75) return 'grade-c';
-  if (v >= 70) return 'grade-d';
-  return 'grade-f';
+async function deleteViolation(id,cadetId){
+  if(sbClient&&!IS_DEMO){const{error}=await sbClient.from('violations').delete().eq('id',id);if(error){showToast('Error: '+error.message,'error');return;}}
+  else{const i=DEMO_VIOLATIONS.findIndex(x=>x.id===id);if(i>=0)DEMO_VIOLATIONS.splice(i,1);}
+  await logAction('DELETE','violations',cadetId,'Violation record deleted');
+  closeModal('confirm-modal');showToast('Violation deleted.','success');loadViolations();
 }
 
-function openModal(id) { document.getElementById(id).classList.add('open'); }
-function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+/* ══════════════════════════════════════
+   USER MANAGEMENT
+══════════════════════════════════════ */
+async function loadUsers(){
+  let data=DEMO_USERS;
+  if(sbClient&&!IS_DEMO){const{data:r}=await sbClient.from('user_profiles').select('*');if(r)data=r;}
+  const tbody=document.getElementById('user-tbody');
+  tbody.innerHTML=data.map(u=>`
+    <tr>
+      <td><strong>${u.name}</strong></td><td class="td-mono">${u.email}</td>
+      <td>${roleBadge(u.role)}</td><td class="td-mono">${u.cadet_id||'—'}</td>
+      <td class="td-mono" style="font-size:11px">${u.created||'—'}</td>
+      <td><div class="td-actions">
+        ${u.id!=='u1'?`<button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="confirmDelete('Delete account for ${u.email}?','They will lose portal access.',()=>deleteUser('${u.id}','${u.email}'))">Delete</button>`:'<span style="color:var(--muted);font-size:11px">Protected</span>'}
+      </div></td>
+    </tr>`).join('');
+}
 
-document.querySelectorAll('.modal-overlay').forEach(el => {
-  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
+async function saveUser(){
+  const name=v('um-name'),email=v('um-email'),role=v('um-role'),pass=v('um-pass');
+  const cadetId=v('um-cadet-id');
+  if(!name||!email||!pass){showToast('Name, email, and password required.','error');return;}
+  if(pass.length<6){showToast('Password must be at least 6 characters.','error');return;}
+  if(sbClient&&!IS_DEMO){
+    const{data,error}=await sbClient.auth.admin?.createUser({email,password:pass,
+      user_metadata:{name,role,cadet_id:cadetId||null}});
+    if(error){showToast('Error: '+error.message,'error');return;}
+    await sbClient.from('user_profiles').insert([{uid:data?.user?.id,name,email,role,cadet_id:cadetId||null,created:new Date().toISOString().split('T')[0]}]);
+  }else{DEMO_USERS.push({id:'u'+Date.now(),name,email,role,cadet_id:cadetId||null,created:new Date().toISOString().split('T')[0]});}
+  await logAction('CREATE','users',email,`Created account: ${name} (${role})`);
+  closeModal('user-modal');showToast('User account created.','success');loadUsers();
+}
+
+async function deleteUser(id,email){
+  if(sbClient&&!IS_DEMO){
+    await sbClient.from('user_profiles').delete().eq('id',id);
+    // Note: Deleting from auth.users requires service role key
+  }else{const i=DEMO_USERS.findIndex(x=>x.id===id);if(i>=0)DEMO_USERS.splice(i,1);}
+  await logAction('DELETE','users',email,'User account deleted');
+  closeModal('confirm-modal');showToast('User account deleted.','success');loadUsers();
+}
+
+function toggleCadetField(){
+  const role=v('um-role');
+  document.getElementById('um-cadet-field').style.display=role==='cadet'?'block':'none';
+  if(role==='cadet') populateCadetDropdown('um-cadet-id');
+}
+
+/* ══════════════════════════════════════
+   AUDIT LOG
+══════════════════════════════════════ */
+async function loadAudit(){
+  let data=DEMO_AUDIT;
+  if(sbClient&&!IS_DEMO){const{data:r}=await sbClient.from('audit_log').select('*').order('created_at',{ascending:false}).limit(200);if(r)data=r;}
+  const tbody=document.getElementById('audit-tbody');
+  if(!data.length){tbody.innerHTML=`<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">No audit entries yet.</td></tr>`;return;}
+  tbody.innerHTML=data.map(a=>`
+    <tr data-search="${(a.action+' '+a.table_name+' '+a.performed_by+' '+(a.details||'')).toLowerCase()}">
+      <td class="td-mono" style="font-size:11px">${a.created_at?new Date(a.created_at).toLocaleString():a.timestamp||'—'}</td>
+      <td><span class="audit-action audit-${(a.action||'').toLowerCase()}">${a.action||'—'}</span></td>
+      <td class="td-mono">${a.table_name||'—'}</td>
+      <td class="td-mono">${a.record_id||'—'}</td>
+      <td style="color:var(--slate);font-size:12px;max-width:200px">${a.details||'—'}</td>
+      <td style="font-size:12px">${a.performed_by||'—'}</td>
+    </tr>`).join('');
+}
+
+async function logAction(action,table,recordId,details){
+  const entry={action,table_name:table,record_id:String(recordId||''),details,
+    performed_by:currentUser?.email||'system',timestamp:new Date().toLocaleString(),
+    created_at:new Date().toISOString()};
+  DEMO_AUDIT.unshift(entry);
+  if(sbClient&&!IS_DEMO){
+    try{await sbClient.from('audit_log').insert([entry]);}catch(e){}
+  }
+}
+
+/* ══════════════════════════════════════
+   MY GRADES (CADET VIEW)
+══════════════════════════════════════ */
+async function loadMyGrades(){
+  const cadetId=currentUser?.cadet_id||'SMC-2025-001';
+  document.getElementById('my-grades-title').textContent=`My Grades — ${cadetId}`;
+  let data=IS_DEMO?DEMO_GRADES.filter(g=>g.cadet_id===cadetId):[];
+  if(sbClient&&!IS_DEMO){const{data:r}=await sbClient.from('grades').select('*').eq('cadet_id',cadetId);if(r)data=r;}
+  const tbody=document.getElementById('my-grade-tbody');
+  if(!data.length){tbody.innerHTML=`<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">No grade records found.</td></tr>`;return;}
+  tbody.innerHTML=data.map(g=>`
+    <tr data-search="${(g.course+' '+(g.term||'')).toLowerCase()}">
+      <td class="td-mono">${g.course}</td>
+      <td><span class="badge badge-gray">${cap(g.term||'—')}</span></td>
+      <td class="grade-cell ${gClass(g.prelim)}">${g.prelim??'—'}</td>
+      <td class="grade-cell ${gClass(g.midterm)}">${g.midterm??'—'}</td>
+      <td class="grade-cell ${gClass(g.final_grade)}">${g.final_grade??'—'}</td>
+      <td class="grade-cell ${gClass(g.computed)}" style="font-weight:700">${g.computed!=null?g.computed+'%':'—'}</td>
+      <td>${rBadge(g.remarks)}</td>
+    </tr>`).join('');
+}
+
+/* ══════════════════════════════════════
+   MY PROFILE
+══════════════════════════════════════ */
+async function loadMyProfile(){
+  const role=currentUser?.role;
+  const initials=(currentUser?.name||'AU').substring(0,2).toUpperCase();
+  document.getElementById('prof-avatar').textContent=initials;
+  document.getElementById('prof-name').textContent=currentUser?.name||currentUser?.email;
+  document.getElementById('prof-role-badge').innerHTML=`<span class="role-pill role-${role}">${cap(role)}</span>`;
+  let infoHTML='';
+  if(role==='cadet'&&currentUser?.cadet_id){
+    const cadetId=currentUser.cadet_id;
+    let cadet=DEMO_CADETS.find(c=>c.cadet_id===cadetId)||{};
+    if(sbClient&&!IS_DEMO){const{data}=await sbClient.from('cadets').select('*').eq('cadet_id',cadetId).single();if(data)cadet=data;}
+    infoHTML=`
+      <div class="profile-info-item"><label>Cadet ID</label><span>${cadet.cadet_id||cadetId}</span></div>
+      <div class="profile-info-item"><label>Course</label><span>${cadet.course||'—'}</span></div>
+      <div class="profile-info-item"><label>Year Level</label><span>${cadet.year_level||'—'}</span></div>
+      <div class="profile-info-item"><label>Section</label><span>${cadet.section||'—'}</span></div>
+      <div class="profile-info-item"><label>Status</label><span>${sBadge(cadet.status||'active')}</span></div>
+      <div class="profile-info-item"><label>Email</label><span>${currentUser.email}</span></div>`;
+  }else{
+    infoHTML=`
+      <div class="profile-info-item"><label>Email</label><span>${currentUser?.email||'—'}</span></div>
+      <div class="profile-info-item"><label>Role</label><span>${cap(role)}</span></div>`;
+  }
+  document.getElementById('prof-info').innerHTML=infoHTML;
+}
+
+/* ══════════════════════════════════════
+   REPORTS
+══════════════════════════════════════ */
+async function generateReport(type){
+  const area=document.getElementById('report-area');
+  const title=document.getElementById('report-title');
+  const content=document.getElementById('report-content');
+  area.style.display='block';
+  let data,html='';
+  const now=new Date().toLocaleDateString();
+  const hdr=`<div class="report-header"><div style="font-size:28px">🎖️</div><div class="report-header-info"><h2>SMC — Records & Grading System</h2><p>Generated: ${now} · Printed by: ${currentUser?.email}</p></div></div>`;
+
+  if(type==='grades'){
+    title.textContent='Grade Report';
+    data=IS_DEMO?DEMO_GRADES:(await sbClient?.from('grades').select('*'))?.data||[];
+    html=hdr+`<table><thead><tr><th>Cadet ID</th><th>Name</th><th>Course</th><th>Term</th><th>Prelim</th><th>Midterm</th><th>Final</th><th>Computed</th><th>Remarks</th></tr></thead><tbody>
+      ${data.map(g=>`<tr><td>${g.cadet_id}</td><td>${g.name||'—'}</td><td>${g.course}</td><td>${cap(g.term)}</td><td>${g.prelim??'—'}</td><td>${g.midterm??'—'}</td><td>${g.final_grade??'—'}</td><td>${g.computed!=null?g.computed+'%':'—'}</td><td>${g.remarks||'—'}</td></tr>`).join('')}
+    </tbody></table>`;
+  }else if(type==='enrollment'){
+    title.textContent='Enrollment Report';
+    data=IS_DEMO?DEMO_CADETS:(await sbClient?.from('cadets').select('*'))?.data||[];
+    html=hdr+`<table><thead><tr><th>Cadet ID</th><th>Name</th><th>Course</th><th>Year</th><th>Section</th><th>Status</th></tr></thead><tbody>
+      ${data.map(c=>`<tr><td>${c.cadet_id}</td><td>${c.last_name}, ${c.first_name}</td><td>${c.course||'—'}</td><td>${c.year_level||'—'}</td><td>${c.section||'—'}</td><td>${c.status||'—'}</td></tr>`).join('')}
+    </tbody></table>`;
+  }else if(type==='violations'){
+    title.textContent='Violations Summary';
+    data=IS_DEMO?DEMO_VIOLATIONS:(await sbClient?.from('violations').select('*'))?.data||[];
+    html=hdr+`<table><thead><tr><th>Date</th><th>Cadet ID</th><th>Name</th><th>Type</th><th>Tier</th><th>Status</th></tr></thead><tbody>
+      ${data.map(v=>`<tr><td>${v.date}</td><td>${v.cadet_id}</td><td>${v.name||'—'}</td><td>${v.type}</td><td>Tier ${v.tier}</td><td>${v.status}</td></tr>`).join('')}
+    </tbody></table>`;
+  }else if(type==='transcript'){
+    title.textContent='Transcript of Records';
+    data=IS_DEMO?DEMO_GRADES:(await sbClient?.from('grades').select('*'))?.data||[];
+    const cadets=[...new Set(data.map(g=>g.cadet_id))];
+    html=hdr+cadets.map(cid=>{
+      const cGrades=data.filter(g=>g.cadet_id===cid);
+      const cadet=DEMO_CADETS.find(c=>c.cadet_id===cid)||{};
+      return `<h3 style="margin:20px 0 8px;font-family:'Libre Baskerville',serif">${cadet.last_name||''}, ${cadet.first_name||cid} — ${cid}</h3>
+        <table><thead><tr><th>Course</th><th>Term</th><th>Prelim</th><th>Midterm</th><th>Final</th><th>Computed</th><th>Remarks</th></tr></thead><tbody>
+        ${cGrades.map(g=>`<tr><td>${g.course}</td><td>${cap(g.term)}</td><td>${g.prelim??'—'}</td><td>${g.midterm??'—'}</td><td>${g.final_grade??'—'}</td><td>${g.computed!=null?g.computed+'%':'—'}</td><td>${g.remarks||'—'}</td></tr>`).join('')}
+        </tbody></table>`;
+    }).join('<hr style="margin:20px 0;border-color:var(--border)"/>');
+  }
+  content.innerHTML=html;
+  area.scrollIntoView({behavior:'smooth'});
+}
+
+/* ══════════════════════════════════════
+   CONFIRM DELETE
+══════════════════════════════════════ */
+function confirmDelete(msg,sub,cb){
+  document.getElementById('confirm-msg').textContent=msg;
+  document.getElementById('confirm-sub').textContent=sub||'This action cannot be undone.';
+  const btn=document.getElementById('confirm-btn');
+  btn.onclick=cb;
+  openModal('confirm-modal');
+}
+
+/* ══════════════════════════════════════
+   UTILS
+══════════════════════════════════════ */
+function v(id){return document.getElementById(id)?.value||'';}
+function setVal(id,val){const el=document.getElementById(id);if(el)el.value=val??'';}
+function setText(id,val){const el=document.getElementById(id);if(el)el.textContent=val;}
+function cap(s){return s?s.charAt(0).toUpperCase()+s.slice(1):'';}
+function filterTbl(tbodyId,q){
+  const ql=q.toLowerCase();
+  document.querySelectorAll(`#${tbodyId} tr`).forEach(tr=>{
+    const txt=tr.dataset.search||tr.textContent.toLowerCase();
+    tr.style.display=txt.includes(ql)?'':'none';
+  });
+}
+function openModal(id){
+  const m=document.getElementById(id);if(m)m.classList.add('open');
+  if(id==='viol-modal') populateCadetDropdown('vm-cadet');
+}
+function closeModal(id){const m=document.getElementById(id);if(m)m.classList.remove('open');}
+document.querySelectorAll('.modal-overlay').forEach(el=>{
+  el.addEventListener('click',e=>{if(e.target===el)el.classList.remove('open');});
 });
+
+function sBadge(s){
+  const map={active:'badge-green',irregular:'badge-gold','on-leave':'badge-gray',dropped:'badge-red',
+    warning:'badge-gold',probation:'badge-red',suspension:'badge-red',inactive:'badge-gray'};
+  return`<span class="badge ${map[(s||'').toLowerCase()]||'badge-gray'}">${cap(s||'—')}</span>`;
+}
+function roleBadge(r){
+  const map={administrator:'badge-gold',registrar:'badge-blue',instructor:'badge-purple',cadet:'badge-green'};
+  return`<span class="badge ${map[r]||'badge-gray'}">${cap(r)}</span>`;
+}
+function tierBadge(tier){
+  if(tier===1)return`<span class="badge badge-gold">Tier 1 — Warning</span>`;
+  if(tier===2)return`<span class="badge badge-red">Tier 2 — Probation</span>`;
+  return`<span class="badge badge-red" style="background:rgba(120,0,0,.3);color:#ff6b6b">Tier ${tier} — Suspension</span>`;
+}
+function rBadge(r){
+  if(!r)return'—';
+  const map={'Passed':'badge-green','Failed':'badge-red','Ongoing':'badge-blue','Incomplete':'badge-gold'};
+  return`<span class="badge ${map[r]||'badge-gray'}">${r}</span>`;
+}
+function gClass(v){
+  if(v==null)return'';if(v>=90)return'grade-a';if(v>=80)return'grade-b';
+  if(v>=75)return'grade-c';if(v>=70)return'grade-d';return'grade-f';
+}
 
 let toastTimer;
-function showToast(msg, type = 'success') {
-  const toast = document.getElementById('toast');
-  document.getElementById('toast-msg').textContent = msg;
-  document.getElementById('toast-icon').textContent = type === 'success' ? '✅' : '❌';
-  toast.className = `show ${type}`;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { toast.className = ''; }, 3200);
+function showToast(msg,type='success'){
+  const t=document.getElementById('toast');
+  document.getElementById('toast-msg').textContent=msg;
+  document.getElementById('toast-icon').textContent=type==='success'?'✅':'❌';
+  t.className=`show ${type}`;clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>{t.className='';},3400);
 }
 
-// Enter key on login
-document.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && document.getElementById('login-screen').style.display !== 'none') handleLogin();
+document.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&document.getElementById('login-screen')?.style.display!=='none')handleLogin();
+  if(e.key==='Escape')document.querySelectorAll('.modal-overlay.open').forEach(m=>m.classList.remove('open'));
 });
 
-// Init
-initSupabase();
+/* ── BOOT ── */
+initSB();
+checkSession();
 </script>
 </body>
 </html>
