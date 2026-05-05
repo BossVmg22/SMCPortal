@@ -373,17 +373,20 @@ body.sidebar-open .sidebar-overlay { display: block; }
   content: '';
   position: fixed;
   top: 50%;
-  left: 50%;
+  left: calc(var(--sidebar-w) + (100vw - var(--sidebar-w)) / 2);
   transform: translate(-50%, -50%);
-  width: 600px;
-  height: 600px;
+  width: 550px;
+  height: 550px;
   background-image: url('https://res.cloudinary.com/di3xaktpd/image/upload/v1777943522/Screenshot_2026-05-05_090450_aooquo.png');
   background-repeat: no-repeat;
   background-size: contain;
   background-position: center;
-  opacity: 0.04;
+  opacity: 0.05;
   pointer-events: none;
   z-index: 0;
+}
+@media (max-width: 768px) {
+  .content::before { display: none; }
 }
 .page { display: none; animation: fadeIn .25s ease both; }
 .page.active { display: block; }
