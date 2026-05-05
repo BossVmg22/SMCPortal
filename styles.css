@@ -101,6 +101,23 @@ body::before {
     linear-gradient(160deg, #040406 0%, #07080a 55%, #090a0d 100%);
 }
 
+/* Big transparent logo watermark on login */
+.auth-screen::before {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 780px;
+  height: 780px;
+  background-image: url('https://res.cloudinary.com/di3xaktpd/image/upload/v1777943522/Screenshot_2026-05-05_090450_aooquo.png');
+  background-repeat: no-repeat;
+  background-size: contain;
+  background-position: center;
+  opacity: 0.06;
+  pointer-events: none;
+  z-index: 0;
+}
+
 /* Fine dot pattern on auth */
 .auth-screen::after {
   content: '';
@@ -375,8 +392,8 @@ body.sidebar-open .sidebar-overlay { display: block; }
   top: 50%;
   left: calc(var(--sidebar-w) + (100vw - var(--sidebar-w)) / 2);
   transform: translate(-50%, -50%);
-  width: 550px;
-  height: 550px;
+  width: 850px;
+  height: 850px;
   background-image: url('https://res.cloudinary.com/di3xaktpd/image/upload/v1777943522/Screenshot_2026-05-05_090450_aooquo.png');
   background-repeat: no-repeat;
   background-size: contain;
