@@ -4,59 +4,39 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>SMC Portal — Records & Grading System</title>
-<!--
-  ══════════════════════════════════════════════════════
-  SUPABASE SQL — Run these in your Supabase SQL Editor
-  before using this portal. (Fixes 1.1 – 1.5)
-  ══════════════════════════════════════════════════════
-
-  -- 1.1 audit_log table
-  create table if not exists audit_log (
-    id uuid default gen_random_uuid() primary key,
-    action text, table_name text, record_id text,
-    details text, performed_by text,
-    created_at timestamptz default now()
-  );
-  alter table audit_log enable row level security;
-  create policy "Authenticated access" on audit_log
-    for all using ((select auth.role()) = 'authenticated');
-
-  -- 1.2 user_profiles table
-  create table if not exists user_profiles (
-    id uuid default gen_random_uuid() primary key,
-    uid uuid references auth.users(id) on delete cascade,
-    name text, email text,
-    role text default 'cadet',
-    cadet_id text,
-    created timestamptz default now()
-  );
-  alter table user_profiles enable row level security;
-  create policy "Authenticated access" on user_profiles
-    for all using ((select auth.role()) = 'authenticated');
-
-  -- 1.3 email column on cadets
-  alter table cadets add column if not exists email text;
-
-  -- 1.4 name column on grades
-  alter table grades add column if not exists name text;
-
-  -- 1.5 Update RLS on other tables
-  -- (drop old policies and re-create with modern syntax)
-  -- Repeat pattern for: cadets, courses, grades, violations
--->
-<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Source+Sans+3:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
-  --navy:#0b1829;--navy-mid:#132238;--navy-light:#1c3254;
-  --gold:#c9a84c;--gold-dim:#9b7e38;
-  --slate:#8fa3bb;--muted:#4a6280;--white:#fff;
-  --danger:#c0392b;--success:#1e7e34;
-  --border:rgba(201,168,76,.18);--sidebar-w:258px;
-  --radius:6px;--t:.2s ease;
+  --army-dark:#080f08;
+  --army-mid:#0e1e0e;
+  --army-card:#132013;
+  --army-light:#1a301a;
+  --olive:#2b4a2b;
+  --olive-bright:#3d6b2d;
+  --gold:#c8960c;
+  --gold-bright:#e0b828;
+  --gold-dim:#8a6508;
+  --silver:#b8cca8;
+  --muted:#5a7a4a;
+  --white:#eef5e8;
+  --danger:#c0392b;
+  --success:#1e7e34;
+  --border:rgba(184,204,168,.12);
+  --border-gold:rgba(200,150,12,.25);
+  --sidebar-w:268px;
+  --radius:6px;
+  --t:.2s ease;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'IBM Plex Sans',sans-serif;background:var(--navy);color:var(--white);min-height:100vh;overflow-x:hidden}
+html{scroll-behavior:smooth}
+body{
+  font-family:'Source Sans 3',sans-serif;
+  background:var(--army-dark);
+  color:var(--white);
+  min-height:100vh;
+  overflow-x:hidden;
+}
 
 /* ── PRINT ── */
 @media print{
@@ -72,52 +52,128 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--navy);color:var(--w
   @page{margin:20mm}
 }
 
+/* ══ BACKGROUND TEXTURE ══ */
+body::before{
+  content:'';
+  position:fixed;inset:0;
+  background-image:
+    repeating-linear-gradient(0deg,transparent,transparent 39px,rgba(184,204,168,.025) 40px),
+    repeating-linear-gradient(90deg,transparent,transparent 39px,rgba(184,204,168,.025) 40px);
+  pointer-events:none;z-index:0;
+}
+
 /* ── AUTH SCREENS ── */
-.auth-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;
-  background:radial-gradient(ellipse 80% 60% at 20% 80%,rgba(201,168,76,.08) 0%,transparent 60%),
-  linear-gradient(160deg,#06101e 0%,#0b1829 50%,#0f2040 100%);position:relative}
-.auth-screen::before{content:'';position:absolute;inset:0;
-  background-image:repeating-linear-gradient(0deg,transparent,transparent 59px,rgba(201,168,76,.04) 60px),
-  repeating-linear-gradient(90deg,transparent,transparent 59px,rgba(201,168,76,.04) 60px);pointer-events:none}
-/* Fix 6.11 — auth card responsive */
-.auth-card{position:relative;width:min(420px,95vw);background:rgba(19,34,56,.96);border:1px solid var(--border);
-  border-radius:10px;padding:44px;box-shadow:0 32px 80px rgba(0,0,0,.6);animation:fadeUp .5s ease both}
-@media(max-width:480px){.auth-card{padding:32px 24px}}
-.auth-crest{display:flex;align-items:center;gap:14px;margin-bottom:28px}
-.crest-icon{width:50px;height:50px;background:linear-gradient(135deg,var(--gold),var(--gold-dim));
-  border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;
-  box-shadow:0 4px 16px rgba(201,168,76,.3);flex-shrink:0}
-.crest-name{font-family:'Libre Baskerville',serif;font-size:14px;font-weight:700;letter-spacing:.04em}
-.crest-sub{font-size:10px;color:var(--slate);text-transform:uppercase;letter-spacing:.1em}
-.auth-divider{height:1px;background:var(--border);margin:0 0 24px}
-.auth-title{font-family:'Libre Baskerville',serif;font-size:20px;margin-bottom:4px}
-.auth-sub{font-size:12px;color:var(--slate);margin-bottom:24px}
+.auth-screen{
+  min-height:100vh;
+  display:flex;align-items:center;justify-content:center;
+  position:relative;
+  background:
+    radial-gradient(ellipse 70% 70% at 15% 85%,rgba(43,74,43,.22) 0%,transparent 60%),
+    radial-gradient(ellipse 50% 50% at 85% 15%,rgba(200,150,12,.07) 0%,transparent 55%),
+    linear-gradient(160deg,#040a04 0%,#080f08 50%,#0a1a08 100%);
+}
+.auth-screen::after{
+  content:'';position:absolute;inset:0;
+  background-image:
+    repeating-linear-gradient(0deg,transparent,transparent 59px,rgba(184,204,168,.035) 60px),
+    repeating-linear-gradient(90deg,transparent,transparent 59px,rgba(184,204,168,.035) 60px);
+  pointer-events:none;
+}
+.auth-card{
+  position:relative;z-index:1;
+  width:min(460px,95vw);
+  background:rgba(13,25,13,.98);
+  border:1px solid rgba(184,204,168,.18);
+  border-radius:14px;
+  padding:48px 44px;
+  box-shadow:
+    0 0 0 1px rgba(200,150,12,.07),
+    0 40px 100px rgba(0,0,0,.75),
+    inset 0 1px 0 rgba(255,255,255,.04);
+  animation:fadeUp .5s ease both;
+}
+.auth-card::before{
+  content:'';position:absolute;
+  top:0;left:24px;right:24px;height:2px;
+  background:linear-gradient(90deg,transparent,var(--gold-dim),var(--gold-bright),var(--gold-bright),var(--gold-dim),transparent);
+  border-radius:0 0 3px 3px;
+}
+@media(max-width:480px){.auth-card{padding:32px 22px}}
 
-.field{margin-bottom:16px}
-.field label{display:block;font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
-  color:var(--slate);margin-bottom:7px}
-.field input,.field select{width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(143,163,187,.2);
-  border-radius:var(--radius);padding:10px 13px;color:var(--white);
-  font-family:'IBM Plex Sans',sans-serif;font-size:13.5px;outline:none;
-  transition:border-color var(--t),box-shadow var(--t)}
-.field input:focus,.field select:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,168,76,.1)}
-.field select option{background:var(--navy-mid)}
+/* LOGO / CREST */
+.auth-crest{display:flex;align-items:center;gap:18px;margin-bottom:28px}
+.crest-logo{
+  width:84px;height:84px;
+  border-radius:50%;overflow:hidden;flex-shrink:0;
+  border:2px solid var(--border-gold);
+  box-shadow:0 0 0 4px rgba(200,150,12,.08),0 6px 30px rgba(0,0,0,.45);
+  background:rgba(0,0,0,.20);
+}
+.crest-logo img{
+  width:100%;height:100%;object-fit:cover;object-position:center;
+  display:block;padding:0;background:transparent;
+}
+.crest-name{font-family:'Cinzel',serif;font-size:15px;font-weight:700;letter-spacing:.07em;color:var(--white);line-height:1.3}
+.crest-sub{font-size:11px;color:var(--silver);text-transform:uppercase;letter-spacing:.13em;margin-top:3px}
+.crest-unit{
+  display:inline-block;font-size:9.5px;color:var(--gold);
+  letter-spacing:.12em;text-transform:uppercase;
+  margin-top:5px;border-top:1px solid var(--border-gold);padding-top:4px;
+}
+.auth-divider{height:1px;background:linear-gradient(90deg,transparent,var(--border-gold),transparent);margin:0 0 26px}
+.auth-title{font-family:'Cinzel',serif;font-size:19px;font-weight:600;margin-bottom:5px;color:var(--white)}
+.auth-sub{font-size:12.5px;color:var(--silver);margin-bottom:26px;letter-spacing:.02em}
 
-.btn-primary{width:100%;background:linear-gradient(135deg,var(--gold),#a8862e);border:none;
-  border-radius:var(--radius);padding:12px;color:var(--navy);font-family:'IBM Plex Sans',sans-serif;
-  font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
-  transition:opacity var(--t),transform var(--t),box-shadow var(--t);margin-top:6px;
-  box-shadow:0 4px 20px rgba(201,168,76,.25)}
-.btn-primary:hover{opacity:.9;transform:translateY(-1px);box-shadow:0 8px 28px rgba(201,168,76,.35)}
+.field{margin-bottom:17px}
+.field label{
+  display:block;font-size:10px;font-weight:700;
+  letter-spacing:.16em;text-transform:uppercase;
+  color:var(--silver);margin-bottom:8px;
+}
+.field input,.field select{
+  width:100%;
+  background:rgba(255,255,255,.03);
+  border:1px solid rgba(184,204,168,.16);
+  border-radius:var(--radius);
+  padding:11px 14px;
+  color:var(--white);
+  font-family:'Source Sans 3',sans-serif;font-size:14px;
+  outline:none;
+  transition:border-color var(--t),box-shadow var(--t);
+}
+.field input:focus,.field select:focus{
+  border-color:var(--gold);
+  box-shadow:0 0 0 3px rgba(200,150,12,.13);
+}
+.field select option{background:var(--army-mid)}
+
+.btn-primary{
+  width:100%;
+  background:linear-gradient(135deg,var(--gold) 0%,var(--gold-dim) 100%);
+  border:none;border-radius:var(--radius);
+  padding:13px;
+  color:#060e06;
+  font-family:'Source Sans 3',sans-serif;
+  font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;
+  cursor:pointer;
+  transition:opacity var(--t),transform var(--t),box-shadow var(--t);
+  margin-top:8px;
+  box-shadow:0 4px 22px rgba(200,150,12,.32);
+  position:relative;overflow:hidden;
+}
+.btn-primary::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(255,255,255,.14),transparent);
+}
+.btn-primary:hover{opacity:.9;transform:translateY(-1px);box-shadow:0 8px 30px rgba(200,150,12,.45)}
 .btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none}
-.auth-link{text-align:center;margin-top:16px;font-size:12px;color:var(--slate)}
+
+.auth-link{text-align:center;margin-top:17px;font-size:12px;color:var(--silver)}
 .auth-link a{color:var(--gold);cursor:pointer;text-decoration:none}
-.auth-link a:hover{text-decoration:underline}
-.auth-error{display:none;background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.4);
-  border-radius:var(--radius);padding:10px 13px;font-size:12px;color:#e74c3c;margin-top:12px}
+.auth-link a:hover{color:var(--gold-bright);text-decoration:underline}
+.auth-error{display:none;background:rgba(192,57,43,.1);border:1px solid rgba(192,57,43,.3);border-radius:var(--radius);padding:10px 14px;font-size:12px;color:#e74c3c;margin-top:13px}
 .auth-error.show{display:block}
-.auth-success{display:none;background:rgba(30,126,52,.15);border:1px solid rgba(30,126,52,.4);
-  border-radius:var(--radius);padding:10px 13px;font-size:12px;color:#2ecc71;margin-top:12px}
+.auth-success{display:none;background:rgba(30,126,52,.1);border:1px solid rgba(30,126,52,.3);border-radius:var(--radius);padding:10px 14px;font-size:12px;color:#2ecc71;margin-top:13px}
 .auth-success.show{display:block}
 
 /* ── APP SHELL ── */
@@ -125,322 +181,484 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--navy);color:var(--w
 #app.active{display:flex}
 
 /* SIDEBAR */
-.sidebar{width:var(--sidebar-w);background:var(--navy-mid);border-right:1px solid var(--border);
-  display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100;
-  overflow-y:auto;transition:transform .28s ease}
-/* Fix 6.1 — sidebar overlay */
-.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99}
+.sidebar{
+  width:var(--sidebar-w);
+  background:var(--army-mid);
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;
+  position:fixed;top:0;left:0;
+  height:100vh;z-index:100;
+  overflow-y:auto;
+  transition:transform .28s ease;
+}
+.sidebar::after{
+  content:'';position:absolute;top:0;right:0;width:1px;height:100%;
+  background:linear-gradient(to bottom,transparent,var(--border-gold) 20%,var(--border-gold) 80%,transparent);
+  pointer-events:none;
+}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:99}
 body.sidebar-open .sidebar{transform:translateX(0)!important}
 body.sidebar-open .sidebar-overlay{display:block}
-.sidebar-header{padding:20px 18px 16px;border-bottom:1px solid var(--border)}
-.sidebar-brand{display:flex;align-items:center;gap:11px}
-.brand-icon{width:38px;height:38px;background:linear-gradient(135deg,var(--gold),var(--gold-dim));
-  border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
-.brand-text{font-family:'Libre Baskerville',serif;font-size:13px;font-weight:700;line-height:1.25}
-.brand-sub{font-size:10px;color:var(--slate);text-transform:uppercase;letter-spacing:.08em}
+
+.sidebar-header{
+  padding:22px 18px 20px;
+  border-bottom:1px solid var(--border);
+  background:linear-gradient(to bottom,rgba(0,0,0,.25),transparent);
+  position:relative;
+}
+.sidebar-header::after{
+  content:'';position:absolute;bottom:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--border-gold),transparent);
+}
+.sidebar-brand{display:flex;align-items:center;gap:13px}
+.brand-logo{
+  width:56px;height:56px;border-radius:50%;overflow:hidden;flex-shrink:0;
+  border:1.5px solid var(--border-gold);
+  box-shadow:0 0 0 3px rgba(200,150,12,.07),0 4px 16px rgba(0,0,0,.35);
+  background:rgba(0,0,0,.18);
+}
+.brand-logo img{
+  width:100%;height:100%;object-fit:cover;object-position:center;
+  display:block;padding:0;background:transparent;
+}
+.brand-text{font-family:'Cinzel',serif;font-size:13px;font-weight:700;letter-spacing:.06em;color:var(--white);line-height:1.3}
+.brand-sub{font-size:9.5px;color:var(--silver);text-transform:uppercase;letter-spacing:.1em;margin-top:1px}
+.brand-tag{font-size:8.5px;color:var(--gold);letter-spacing:.1em;margin-top:3px;text-transform:uppercase}
+
 .nav-section{padding:14px 10px 6px}
-.nav-label{font-size:9.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;
-  color:var(--muted);padding:0 8px;margin-bottom:4px}
-.nav-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:var(--radius);
-  cursor:pointer;font-size:13px;color:var(--slate);margin-bottom:1px;user-select:none;
-  transition:background var(--t),color var(--t)}
+.nav-label{
+  font-size:9px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--muted);padding:0 8px;margin-bottom:5px;
+  display:flex;align-items:center;gap:8px;
+}
+.nav-label::after{content:'';flex:1;height:1px;background:var(--border)}
+.nav-item{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 10px;border-radius:var(--radius);
+  cursor:pointer;font-size:13px;color:var(--silver);
+  margin-bottom:1px;user-select:none;
+  transition:background var(--t),color var(--t),padding-left var(--t);
+  letter-spacing:.01em;
+}
 .nav-item .ni{font-size:15px;width:20px;text-align:center;flex-shrink:0}
-.nav-item:hover{background:rgba(255,255,255,.05);color:var(--white)}
-.nav-item.active{background:rgba(201,168,76,.12);color:var(--gold);font-weight:500}
+.nav-item:hover{background:rgba(255,255,255,.045);color:var(--white)}
+.nav-item.active{
+  background:linear-gradient(90deg,rgba(200,150,12,.14),rgba(200,150,12,.06));
+  color:var(--gold-bright);font-weight:600;
+  border-left:2px solid var(--gold);
+  padding-left:8px;
+}
 .sidebar-footer{margin-top:auto;padding:14px 10px;border-top:1px solid var(--border)}
-.user-chip{display:flex;align-items:center;gap:9px;padding:9px 10px;
-  background:rgba(255,255,255,.04);border-radius:var(--radius);margin-bottom:4px}
-.user-avatar{width:30px;height:30px;background:linear-gradient(135deg,var(--gold),var(--gold-dim));
+.user-chip{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 11px;
+  background:rgba(255,255,255,.035);
+  border-radius:var(--radius);margin-bottom:5px;
+  border:1px solid var(--border);
+}
+.user-avatar{
+  width:34px;height:34px;
+  background:linear-gradient(135deg,var(--gold),var(--gold-dim));
   border-radius:50%;display:flex;align-items:center;justify-content:center;
-  font-size:12px;font-weight:700;color:var(--navy);flex-shrink:0}
-.user-info-name{font-size:12.5px;font-weight:500}
-.user-info-role{font-size:10px;color:var(--slate)}
-.role-pill{display:inline-block;padding:1px 7px;border-radius:10px;font-size:9px;font-weight:700;
-  letter-spacing:.06em;text-transform:uppercase;margin-top:2px}
-.role-admin,.role-administrator{background:rgba(201,168,76,.2);color:var(--gold)}
+  font-size:13px;font-weight:700;color:var(--army-dark);flex-shrink:0;
+  font-family:'Cinzel',serif;
+}
+.user-info-name{font-size:12.5px;font-weight:500;color:var(--white)}
+.user-info-role{font-size:10px;color:var(--silver)}
+.role-pill{
+  display:inline-block;padding:1px 8px;border-radius:10px;
+  font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-top:2px;
+}
+.role-admin,.role-administrator{background:rgba(200,150,12,.2);color:var(--gold-bright)}
 .role-registrar{background:rgba(41,128,185,.2);color:#5dade2}
 .role-instructor{background:rgba(142,68,173,.2);color:#bb8fce}
 .role-cadet{background:rgba(30,126,52,.2);color:#2ecc71}
-.logout-btn{display:flex;align-items:center;gap:7px;padding:7px 10px;border:none;background:none;
-  color:var(--muted);font-size:12px;font-family:'IBM Plex Sans',sans-serif;cursor:pointer;
-  width:100%;border-radius:var(--radius);transition:color var(--t),background var(--t)}
+.logout-btn{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 10px;border:none;background:none;
+  color:var(--muted);font-size:12px;
+  font-family:'Source Sans 3',sans-serif;
+  cursor:pointer;width:100%;border-radius:var(--radius);
+  transition:color var(--t),background var(--t);
+}
 .logout-btn:hover{color:#e74c3c;background:rgba(192,57,43,.1)}
 
 /* MAIN */
 .main{margin-left:var(--sidebar-w);flex:1;display:flex;flex-direction:column;min-height:100vh}
-/* Fix 6.6 — topbar mobile */
-.topbar{height:56px;background:rgba(11,24,41,.96);border-bottom:1px solid var(--border);
-  display:flex;align-items:center;justify-content:space-between;padding:0 26px;
-  position:sticky;top:0;z-index:50;backdrop-filter:blur(8px)}
-/* Fix 6.1 — hamburger button */
-.hamburger-btn{display:none;align-items:center;justify-content:center;
-  background:none;border:1px solid rgba(143,163,187,.2);border-radius:var(--radius);
-  color:var(--slate);font-size:18px;width:36px;height:36px;cursor:pointer;
-  transition:background var(--t),color var(--t);flex-shrink:0}
-.hamburger-btn:hover{background:rgba(255,255,255,.06);color:var(--white)}
-.breadcrumb{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--slate)}
+.topbar{
+  height:56px;
+  background:rgba(8,15,8,.97);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 28px;
+  position:sticky;top:0;z-index:50;
+  backdrop-filter:blur(12px);
+}
+.topbar::after{
+  content:'';position:absolute;bottom:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--border-gold),transparent);
+  pointer-events:none;
+}
+.hamburger-btn{
+  display:none;align-items:center;justify-content:center;
+  background:none;border:1px solid rgba(184,204,168,.16);
+  border-radius:var(--radius);color:var(--silver);
+  font-size:18px;width:36px;height:36px;cursor:pointer;
+  transition:background var(--t),color var(--t);flex-shrink:0;
+}
+.hamburger-btn:hover{background:rgba(255,255,255,.05);color:var(--white)}
+.breadcrumb{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--silver)}
 .breadcrumb .sep{color:var(--muted)}
-.breadcrumb .cur{color:var(--white);font-weight:500}
+.breadcrumb .cur{color:var(--white);font-weight:600}
 .topbar-right{display:flex;align-items:center;gap:14px}
-.status-pill{display:flex;align-items:center;gap:5px;font-size:11.5px;color:#2ecc71;font-weight:500}
-.status-dot{width:7px;height:7px;background:#2ecc71;border-radius:50%;
-  box-shadow:0 0 6px rgba(46,204,113,.6);animation:pulse 2s ease-in-out infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.status-pill{display:flex;align-items:center;gap:5px;font-size:11.5px;color:#4caf76;font-weight:600}
+.status-dot{
+  width:7px;height:7px;background:#4caf76;border-radius:50%;
+  box-shadow:0 0 7px rgba(76,175,118,.75);
+  animation:pulse 2s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 
 /* CONTENT */
-.content{padding:28px 26px;flex:1}
+.content{padding:28px 28px;flex:1;position:relative;z-index:1}
 .page{display:none;animation:fadeIn .25s ease both}
 .page.active{display:block}
-@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:translateY(0)}}
 
-/* HERO */
-.hero-banner{background:linear-gradient(135deg,var(--navy-light) 0%,#0f2545 60%,#1a3a6b 100%);
-  border:1px solid var(--border);border-radius:10px;padding:26px 30px;
-  display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;
-  position:relative;overflow:hidden}
-.hero-banner::before{content:'🎖';position:absolute;right:100px;top:50%;
-  transform:translateY(-50%);font-size:110px;opacity:.05;pointer-events:none}
-.hero-label{font-size:9.5px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;
-  color:var(--gold);margin-bottom:5px}
-.hero-title{font-family:'Libre Baskerville',serif;font-size:24px;font-weight:700;margin-bottom:7px}
-.hero-desc{font-size:12.5px;color:var(--slate);max-width:460px;line-height:1.6}
-.hero-stats{display:flex;gap:16px;flex-shrink:0}
-.hero-stat{text-align:center;background:rgba(255,255,255,.07);border:1px solid rgba(201,168,76,.15);
-  border-radius:8px;padding:14px 20px;min-width:82px}
-.hero-stat-num{font-family:'IBM Plex Mono',monospace;font-size:24px;font-weight:500;color:var(--gold);line-height:1}
-.hero-stat-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--slate);margin-top:5px}
-/* Fix 6.5 — hero stats mobile strip */
+/* HERO BANNER */
+.hero-banner{
+  background:linear-gradient(135deg,var(--army-light) 0%,#102410 55%,#172e10 100%);
+  border:1px solid var(--border);
+  border-top:1px solid rgba(200,150,12,.28);
+  border-radius:12px;
+  padding:28px 32px;
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:24px;position:relative;overflow:hidden;
+}
+.hero-banner::before{
+  content:'';position:absolute;right:50px;top:50%;transform:translateY(-50%);
+  width:180px;height:180px;
+  background:var(--hero-logo-bg,rgba(200,150,12,.04));
+  border-radius:50%;pointer-events:none;opacity:.7;
+}
+.hero-label{font-size:9.5px;font-weight:700;letter-spacing:.24em;text-transform:uppercase;color:var(--gold);margin-bottom:6px}
+.hero-title{font-family:'Cinzel',serif;font-size:25px;font-weight:700;margin-bottom:8px;color:var(--white)}
+.hero-desc{font-size:12.5px;color:var(--silver);max-width:460px;line-height:1.65}
+.hero-stats{display:flex;gap:14px;flex-shrink:0}
+.hero-stat{
+  text-align:center;
+  background:rgba(0,0,0,.35);
+  border:1px solid var(--border-gold);border-radius:10px;
+  padding:15px 22px;min-width:84px;
+}
+.hero-stat-num{font-family:'IBM Plex Mono',monospace;font-size:26px;font-weight:500;color:var(--gold-bright);line-height:1}
+.hero-stat-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.13em;color:var(--silver);margin-top:6px}
 .hero-stats-mobile{display:none;flex-wrap:wrap;gap:10px;margin-top:16px}
-.hero-stat-mobile{flex:1 1 calc(33% - 10px);background:rgba(255,255,255,.07);
-  border:1px solid rgba(201,168,76,.15);border-radius:8px;padding:10px 14px;text-align:center}
+.hero-stat-mobile{
+  flex:1 1 calc(33% - 10px);
+  background:rgba(0,0,0,.32);border:1px solid var(--border-gold);
+  border-radius:9px;padding:11px 14px;text-align:center;
+}
 
 /* SECTION TITLE */
-.sec-title{font-size:10.5px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;
-  color:var(--muted);margin-bottom:14px}
+.sec-title{
+  font-size:9.5px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:15px;
+  display:flex;align-items:center;gap:10px;
+}
+.sec-title::after{content:'';flex:1;height:1px;background:var(--border)}
 
-/* Fix 6.8 — cards grid breakpoints */
+/* CARDS GRID */
 .cards-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
-.op-card{background:rgba(255,255,255,.03);border:1px solid rgba(143,163,187,.1);border-radius:8px;
-  padding:20px;cursor:pointer;transition:border-color var(--t),background var(--t),transform var(--t),box-shadow var(--t)}
-.op-card:hover{background:rgba(201,168,76,.06);border-color:rgba(201,168,76,.28);
-  transform:translateY(-2px);box-shadow:0 8px 30px rgba(0,0,0,.28)}
-.op-card-icon{width:40px;height:40px;border-radius:8px;display:flex;align-items:center;
-  justify-content:center;font-size:19px;margin-bottom:12px}
-.op-card-title{font-size:13.5px;font-weight:600;margin-bottom:5px}
-.op-card-desc{font-size:11.5px;color:var(--slate);line-height:1.5}
-.ic-blue{background:rgba(41,128,185,.2)}.ic-gold{background:rgba(201,168,76,.15)}
-.ic-green{background:rgba(30,126,52,.2)}.ic-red{background:rgba(192,57,43,.2)}
-.ic-purple{background:rgba(142,68,173,.2)}.ic-teal{background:rgba(22,160,133,.2)}
-.ic-orange{background:rgba(230,126,34,.2)}.ic-gray{background:rgba(143,163,187,.1)}
+.op-card{
+  background:rgba(255,255,255,.02);
+  border:1px solid rgba(184,204,168,.07);
+  border-radius:10px;padding:20px;cursor:pointer;
+  transition:border-color var(--t),background var(--t),transform var(--t),box-shadow var(--t);
+  position:relative;overflow:hidden;
+}
+.op-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--border-gold),transparent);
+  opacity:0;transition:opacity var(--t);
+}
+.op-card:hover{
+  background:rgba(200,150,12,.055);
+  border-color:rgba(200,150,12,.28);
+  transform:translateY(-2px);
+  box-shadow:0 10px 34px rgba(0,0,0,.4);
+}
+.op-card:hover::before{opacity:1}
+.op-card-icon{width:42px;height:42px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:13px}
+.op-card-title{font-size:13.5px;font-weight:600;margin-bottom:5px;color:var(--white)}
+.op-card-desc{font-size:11.5px;color:var(--silver);line-height:1.55}
+.ic-blue{background:rgba(41,128,185,.18)}.ic-gold{background:rgba(200,150,12,.15)}.ic-green{background:rgba(30,126,52,.18)}.ic-red{background:rgba(192,57,43,.18)}.ic-purple{background:rgba(142,68,173,.18)}.ic-teal{background:rgba(22,160,133,.18)}.ic-orange{background:rgba(230,126,34,.18)}.ic-gray{background:rgba(184,204,168,.07)}
 
-/* Fix 6.9 — stats row responsive */
+/* STATS ROW */
 .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}
-.stat-card{background:rgba(255,255,255,.03);border:1px solid rgba(143,163,187,.1);
-  border-radius:8px;padding:16px 18px}
-.stat-card-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:7px}
-.stat-card-val{font-family:'IBM Plex Mono',monospace;font-size:26px;color:var(--white);font-weight:500}
-.stat-card-sub{font-size:11px;color:var(--slate);margin-top:3px}
+.stat-card{
+  background:rgba(255,255,255,.02);border:1px solid var(--border);
+  border-radius:9px;padding:17px 19px;position:relative;overflow:hidden;
+}
+.stat-card::after{
+  content:'';position:absolute;bottom:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--gold-dim),var(--gold),var(--gold-dim));
+  opacity:.35;
+}
+.stat-card-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.13em;color:var(--muted);margin-bottom:8px;font-weight:600}
+.stat-card-val{font-family:'IBM Plex Mono',monospace;font-size:28px;color:var(--white);font-weight:500}
+.stat-card-sub{font-size:11px;color:var(--silver);margin-top:4px}
 
 /* PANEL */
-.panel{background:rgba(19,34,56,.7);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.panel{
+  background:rgba(14,25,14,.8);border:1px solid var(--border);
+  border-radius:9px;overflow:hidden;backdrop-filter:blur(4px);
+}
 .panel+.panel{margin-top:16px}
-/* Fix 6.10 — panel header mobile */
-.panel-header{display:flex;align-items:center;justify-content:space-between;
-  padding:16px 20px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:10px}
-.panel-title{font-size:13.5px;font-weight:600}
-.panel-sub{font-size:11.5px;color:var(--slate);margin-top:2px}
+.panel-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:17px 22px;border-bottom:1px solid var(--border);
+  flex-wrap:wrap;gap:10px;background:rgba(0,0,0,.18);
+}
+.panel-title{font-size:14px;font-weight:600;color:var(--white);letter-spacing:.01em}
+.panel-sub{font-size:11.5px;color:var(--silver);margin-top:2px}
 .panel-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.search-bar input{background:rgba(255,255,255,.04);border:1px solid rgba(143,163,187,.2);
-  border-radius:var(--radius);padding:7px 13px;color:var(--white);font-size:12.5px;
-  font-family:'IBM Plex Sans',sans-serif;outline:none;width:200px;transition:border-color var(--t)}
+.search-bar input{
+  background:rgba(255,255,255,.04);border:1px solid rgba(184,204,168,.16);
+  border-radius:var(--radius);padding:7px 14px;
+  color:var(--white);font-size:12.5px;font-family:'Source Sans 3',sans-serif;
+  outline:none;width:210px;transition:border-color var(--t);
+}
 .search-bar input:focus{border-color:var(--gold)}
 .search-bar input::placeholder{color:var(--muted)}
 
 /* BUTTONS */
-.btn{padding:7px 15px;border-radius:var(--radius);font-size:12px;font-weight:600;
-  font-family:'IBM Plex Sans',sans-serif;cursor:pointer;border:none;
-  transition:opacity var(--t),box-shadow var(--t),transform var(--t);letter-spacing:.03em}
-.btn:hover{opacity:.88}
-.btn:active{transform:scale(.98)}
-.btn-gold{background:linear-gradient(135deg,var(--gold),var(--gold-dim));color:var(--navy);
-  box-shadow:0 2px 10px rgba(201,168,76,.2)}
-.btn-gold:hover{box-shadow:0 4px 16px rgba(201,168,76,.35)}
-.btn-outline{background:transparent;border:1px solid rgba(143,163,187,.2)!important;color:var(--slate)}
-.btn-outline:hover{border-color:rgba(201,168,76,.3)!important;color:var(--white)}
-.btn-danger{background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3)!important;color:#e74c3c}
-.btn-danger:hover{background:rgba(192,57,43,.25)}
-.btn-success{background:rgba(30,126,52,.2);border:1px solid rgba(30,126,52,.3)!important;color:#2ecc71}
+.btn{
+  padding:7px 15px;border-radius:var(--radius);
+  font-size:11.5px;font-weight:600;font-family:'Source Sans 3',sans-serif;
+  cursor:pointer;border:none;
+  transition:opacity var(--t),box-shadow var(--t),transform var(--t);
+  letter-spacing:.05em;text-transform:uppercase;
+}
+.btn:hover{opacity:.87}.btn:active{transform:scale(.98)}
+.btn-gold{
+  background:linear-gradient(135deg,var(--gold),var(--gold-dim));
+  color:var(--army-dark);box-shadow:0 2px 12px rgba(200,150,12,.28);font-weight:700;
+}
+.btn-gold:hover{box-shadow:0 5px 20px rgba(200,150,12,.45)}
+.btn-outline{background:transparent;border:1px solid rgba(184,204,168,.2)!important;color:var(--silver)}
+.btn-outline:hover{border-color:rgba(200,150,12,.35)!important;color:var(--white)}
+.btn-danger{background:rgba(192,57,43,.1);border:1px solid rgba(192,57,43,.28)!important;color:#e74c3c}
+.btn-danger:hover{background:rgba(192,57,43,.22)}
+.btn-success{background:rgba(30,126,52,.18);border:1px solid rgba(30,126,52,.3)!important;color:#2ecc71}
 
-/* Fix 6.2 — table overflow */
+/* TABLE */
 .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;position:relative}
-.table-wrap::after{content:'';position:absolute;right:0;top:0;bottom:0;width:24px;
-  background:linear-gradient(to left,rgba(11,24,41,.6),transparent);pointer-events:none}
+.table-wrap::after{
+  content:'';position:absolute;right:0;top:0;bottom:0;width:24px;
+  background:linear-gradient(to left,rgba(8,15,8,.6),transparent);pointer-events:none;
+}
 table{width:100%;border-collapse:collapse;min-width:500px}
-thead th{padding:10px 16px;text-align:left;font-size:10px;font-weight:600;letter-spacing:.1em;
-  text-transform:uppercase;color:var(--muted);background:rgba(255,255,255,.02);
-  border-bottom:1px solid var(--border)}
-tbody tr{border-bottom:1px solid rgba(143,163,187,.06);transition:background var(--t)}
-tbody tr:hover{background:rgba(201,168,76,.04)}
-tbody td{padding:11px 16px;font-size:12.5px;color:var(--white);vertical-align:middle}
-.td-mono{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--slate)}
+thead th{
+  padding:11px 17px;text-align:left;
+  font-size:9.5px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;
+  color:var(--muted);background:rgba(0,0,0,.22);
+  border-bottom:1px solid var(--border);
+}
+tbody tr{border-bottom:1px solid rgba(184,204,168,.045);transition:background var(--t)}
+tbody tr:hover{background:rgba(200,150,12,.04)}
+tbody td{padding:12px 17px;font-size:12.5px;color:var(--white);vertical-align:middle}
+.td-mono{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--silver)}
 .td-actions{display:flex;gap:6px;flex-wrap:wrap}
 
 /* BADGES */
-.badge{display:inline-flex;align-items:center;padding:2px 9px;border-radius:20px;
-  font-size:10.5px;font-weight:600;letter-spacing:.03em}
-.badge-green{background:rgba(30,126,52,.2);color:#2ecc71}
-.badge-gold{background:rgba(201,168,76,.15);color:var(--gold)}
+.badge{display:inline-flex;align-items:center;padding:2px 10px;border-radius:20px;font-size:10.5px;font-weight:600;letter-spacing:.04em}
+.badge-green{background:rgba(30,126,52,.2);color:#4caf76}
+.badge-gold{background:rgba(200,150,12,.15);color:var(--gold-bright)}
 .badge-blue{background:rgba(41,128,185,.2);color:#5dade2}
 .badge-red{background:rgba(192,57,43,.2);color:#e74c3c}
-.badge-gray{background:rgba(143,163,187,.1);color:var(--slate)}
+.badge-gray{background:rgba(184,204,168,.08);color:var(--silver)}
 .badge-purple{background:rgba(142,68,173,.2);color:#bb8fce}
 .badge-orange{background:rgba(230,126,34,.2);color:#f39c12}
 
 /* GRADE COLORS */
 .grade-cell{font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:500}
-.grade-a{color:#2ecc71}.grade-b{color:#5dade2}.grade-c{color:var(--gold)}
+.grade-a{color:#4caf76}.grade-b{color:#5dade2}.grade-c{color:var(--gold-bright)}
 .grade-d{color:#e67e22}.grade-f{color:#e74c3c}
 
 /* GRADE FILTERS */
-.grade-filters{display:flex;gap:8px;padding:14px 20px;border-bottom:1px solid var(--border);flex-wrap:wrap}
-.filter-chip{padding:5px 13px;border-radius:20px;font-size:11.5px;font-weight:500;cursor:pointer;
-  border:1px solid rgba(143,163,187,.15);color:var(--slate);background:transparent;
-  font-family:'IBM Plex Sans',sans-serif;transition:all var(--t)}
-.filter-chip.active,.filter-chip:hover{background:rgba(201,168,76,.12);
-  border-color:rgba(201,168,76,.3);color:var(--gold)}
+.grade-filters{
+  display:flex;gap:8px;padding:12px 22px;
+  border-bottom:1px solid var(--border);flex-wrap:wrap;
+  background:rgba(0,0,0,.12);
+}
+.filter-chip{
+  padding:5px 14px;border-radius:20px;font-size:11.5px;font-weight:600;
+  cursor:pointer;border:1px solid rgba(184,204,168,.12);
+  color:var(--silver);background:transparent;
+  font-family:'Source Sans 3',sans-serif;
+  transition:all var(--t);letter-spacing:.04em;
+}
+.filter-chip.active,.filter-chip:hover{
+  background:rgba(200,150,12,.12);
+  border-color:rgba(200,150,12,.3);
+  color:var(--gold-bright);
+}
 
 /* FORMS */
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .form-group{margin-bottom:0}
-.form-group label{display:block;font-size:10px;font-weight:600;letter-spacing:.12em;
-  text-transform:uppercase;color:var(--slate);margin-bottom:7px}
+.form-group label{
+  display:block;font-size:10px;font-weight:700;
+  letter-spacing:.15em;text-transform:uppercase;
+  color:var(--silver);margin-bottom:8px;
+}
 .form-group input,.form-group select,.form-group textarea{
-  width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(143,163,187,.2);
-  border-radius:var(--radius);padding:9px 13px;color:var(--white);
-  font-family:'IBM Plex Sans',sans-serif;font-size:13px;outline:none;
-  transition:border-color var(--t),box-shadow var(--t)}
+  width:100%;background:rgba(255,255,255,.03);
+  border:1px solid rgba(184,204,168,.17);border-radius:var(--radius);
+  padding:9px 14px;color:var(--white);
+  font-family:'Source Sans 3',sans-serif;font-size:13px;
+  outline:none;transition:border-color var(--t),box-shadow var(--t);
+}
 .form-group input:focus,.form-group select:focus,.form-group textarea:focus{
-  border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,168,76,.1)}
-.form-group select option{background:var(--navy-mid)}
+  border-color:var(--gold);box-shadow:0 0 0 3px rgba(200,150,12,.1);
+}
+.form-group select option{background:var(--army-mid)}
 .form-group textarea{resize:vertical;min-height:76px}
 .form-group input[readonly]{opacity:.6;cursor:default}
 .form-span-2{grid-column:span 2}
 .form-actions{display:flex;gap:8px;justify-content:flex-end;padding-top:6px;flex-wrap:wrap}
-.form-body{padding:22px}
-/* Fix 5.2 — inline validation */
-.form-group input.invalid,.form-group select.invalid,.form-group textarea.invalid{
-  border-color:#e74c3c!important;box-shadow:0 0 0 3px rgba(192,57,43,.1)!important}
+.form-body{padding:24px}
+.form-group input.invalid,.form-group select.invalid,.form-group textarea.invalid{border-color:#e74c3c!important;box-shadow:0 0 0 3px rgba(192,57,43,.1)!important}
 .field-error{font-size:11px;color:#e74c3c;margin-top:5px;display:none}
 .field-error.show{display:block}
 
 /* MODALS */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;
-  align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(4px)}
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.8);
+  display:none;align-items:center;justify-content:center;
+  z-index:200;backdrop-filter:blur(7px);
+}
 .modal-overlay.open{display:flex}
-/* Fix 6.3 — modal responsive */
-.modal{background:var(--navy-mid);border:1px solid var(--border);border-radius:10px;
-  width:520px;max-height:88vh;overflow-y:auto;animation:fadeUp .28s ease both}
-.modal.modal-sm{width:380px}
-.modal.modal-lg{width:680px}
-.modal-header{display:flex;align-items:center;justify-content:space-between;
-  padding:20px 24px;border-bottom:1px solid var(--border)}
-.modal-title{font-family:'Libre Baskerville',serif;font-size:16px}
-.modal-close{background:none;border:none;color:var(--slate);font-size:20px;
-  cursor:pointer;line-height:1;transition:color var(--t)}
+.modal{
+  background:var(--army-mid);border:1px solid var(--border);
+  border-radius:12px;width:530px;max-height:90vh;
+  overflow-y:auto;animation:fadeUp .28s ease both;
+  box-shadow:0 40px 90px rgba(0,0,0,.75);
+}
+.modal.modal-sm{width:390px}.modal.modal-lg{width:700px}
+.modal-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:21px 26px;border-bottom:1px solid var(--border);
+  background:rgba(0,0,0,.22);
+}
+.modal-title{font-family:'Cinzel',serif;font-size:15px;color:var(--white)}
+.modal-close{background:none;border:none;color:var(--silver);font-size:20px;cursor:pointer;line-height:1;transition:color var(--t)}
 .modal-close:hover{color:var(--white)}
-.modal-body{padding:24px}
-.modal-footer{padding:16px 24px;border-top:1px solid var(--border);
-  display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.modal-body{padding:26px}
+.modal-footer{
+  padding:17px 26px;border-top:1px solid var(--border);
+  display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;
+  background:rgba(0,0,0,.18);
+}
 
 /* CONFIRM MODAL */
-.confirm-icon{font-size:40px;text-align:center;margin-bottom:14px}
-.confirm-msg{font-size:14px;color:var(--slate);text-align:center;line-height:1.6;margin-bottom:6px}
+.confirm-icon{font-size:42px;text-align:center;margin-bottom:15px}
+.confirm-msg{font-size:14px;color:var(--silver);text-align:center;line-height:1.6;margin-bottom:6px}
 .confirm-sub{font-size:12px;color:var(--muted);text-align:center}
 
-/* Fix 5.1 — loading spinner */
+/* SPINNER */
 @keyframes spin{to{transform:rotate(360deg)}}
-.spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(201,168,76,.2);
-  border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;margin-right:8px;vertical-align:middle}
-.loading-row td{text-align:center;color:var(--muted);padding:28px!important;font-size:12.5px}
+.spinner{
+  display:inline-block;width:14px;height:14px;
+  border:2px solid rgba(200,150,12,.2);border-top-color:var(--gold);
+  border-radius:50%;animation:spin .7s linear infinite;
+  margin-right:8px;vertical-align:middle;
+}
+.loading-row td{text-align:center;color:var(--muted);padding:30px!important;font-size:12.5px}
 
 /* TOAST */
-#toast{position:fixed;bottom:24px;right:24px;background:rgba(19,34,56,.97);
-  border:1px solid var(--border);border-radius:8px;padding:12px 16px;
-  display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--white);
-  box-shadow:0 8px 32px rgba(0,0,0,.4);transform:translateY(80px);opacity:0;
-  transition:transform .3s ease,opacity .3s ease;z-index:400;max-width:320px}
+#toast{
+  position:fixed;bottom:24px;right:24px;
+  background:rgba(13,22,13,.98);
+  border:1px solid var(--border);border-radius:9px;
+  padding:13px 17px;display:flex;align-items:center;gap:11px;
+  font-size:12.5px;color:var(--white);
+  box-shadow:0 10px 36px rgba(0,0,0,.55);
+  transform:translateY(80px);opacity:0;
+  transition:transform .3s ease,opacity .3s ease;
+  z-index:400;max-width:330px;
+}
 #toast.show{transform:translateY(0);opacity:1}
-#toast.success{border-color:rgba(46,204,113,.4)}
+#toast.success{border-color:rgba(76,175,118,.4)}
 #toast.error{border-color:rgba(231,76,60,.4)}
 
 /* EMPTY STATE */
-.empty-state{padding:48px;text-align:center;color:var(--muted)}
-.empty-state .ei{font-size:38px;margin-bottom:10px}
+.empty-state{padding:52px;text-align:center;color:var(--muted)}
+.empty-state .ei{font-size:40px;margin-bottom:12px}
 .empty-state p{font-size:13px}
 
 /* PROFILE CARD */
-.profile-card{background:rgba(19,34,56,.7);border:1px solid var(--border);border-radius:10px;overflow:hidden}
-.profile-banner{height:100px;background:linear-gradient(135deg,var(--navy-light),#0f2545,#1a3a6b)}
-.profile-body{padding:0 24px 24px}
-.profile-avatar{width:72px;height:72px;background:linear-gradient(135deg,var(--gold),var(--gold-dim));
+.profile-card{background:rgba(14,25,14,.8);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.profile-banner{
+  height:110px;
+  background:linear-gradient(135deg,var(--army-light),#102410,#182e10);
+  position:relative;
+}
+.profile-banner::after{
+  content:'';position:absolute;inset:0;
+  background:repeating-linear-gradient(45deg,transparent,transparent 10px,rgba(200,150,12,.025) 10px,rgba(200,150,12,.025) 11px);
+}
+.profile-body{padding:0 26px 26px}
+.profile-avatar{
+  width:76px;height:76px;
+  background:linear-gradient(135deg,var(--gold),var(--gold-dim));
   border-radius:50%;display:flex;align-items:center;justify-content:center;
-  font-size:26px;font-weight:700;color:var(--navy);border:4px solid var(--navy-mid);
-  margin-top:-36px;margin-bottom:12px;font-family:'Libre Baskerville',serif}
-.profile-name{font-family:'Libre Baskerville',serif;font-size:20px;margin-bottom:4px}
-.profile-info-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px}
-.profile-info-item label{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
-  color:var(--muted);display:block;margin-bottom:4px}
+  font-size:28px;font-weight:700;color:var(--army-dark);
+  border:4px solid var(--army-mid);
+  margin-top:-38px;margin-bottom:13px;
+  font-family:'Cinzel',serif;
+}
+.profile-name{font-family:'Cinzel',serif;font-size:21px;margin-bottom:5px;color:var(--white)}
+.profile-info-grid{display:grid;grid-template-columns:1fr 1fr;gap:17px;margin-top:20px}
+.profile-info-item label{font-size:10px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:5px}
 .profile-info-item span{font-size:13.5px;color:var(--white)}
 
 /* AUDIT LOG */
-.audit-action{font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:600;
-  padding:2px 7px;border-radius:4px}
-.audit-create{background:rgba(30,126,52,.2);color:#2ecc71}
+.audit-action{font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:4px}
+.audit-create{background:rgba(30,126,52,.2);color:#4caf76}
 .audit-update{background:rgba(41,128,185,.2);color:#5dade2}
 .audit-delete{background:rgba(192,57,43,.2);color:#e74c3c}
-.audit-login{background:rgba(201,168,76,.15);color:var(--gold)}
+.audit-login{background:rgba(200,150,12,.15);color:var(--gold-bright)}
 
-/* REPORT PRINT AREA */
-.report-preview{background:rgba(255,255,255,.02);border:1px solid var(--border);
-  border-radius:8px;padding:24px;margin-top:16px}
-.report-header{display:flex;align-items:center;gap:16px;margin-bottom:24px;
-  padding-bottom:16px;border-bottom:1px solid var(--border)}
-.report-header-info h2{font-family:'Libre Baskerville',serif;font-size:18px}
-.report-header-info p{font-size:12px;color:var(--slate)}
+/* REPORT AREA */
+.report-preview{background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:9px;padding:26px;margin-top:16px}
 
 /* ── RESPONSIVE ── */
 @media(max-width:900px){
   .cards-grid{grid-template-columns:1fr 1fr}
-  /* Fix 6.5 — hero stats desktop hidden, mobile strip shown */
-  .hero-stats{display:none}
-  .hero-stats-mobile{display:flex}
+  .hero-stats{display:none}.hero-stats-mobile{display:flex}
 }
 @media(max-width:768px){
   .cards-grid{grid-template-columns:1fr 1fr}
-  /* Fix 6.9 — stats row 2-col on tablet */
   .stats-row{grid-template-columns:1fr 1fr}
 }
 @media(max-width:640px){
-  /* Fix 6.1 — show hamburger, hide sidebar by default */
   .sidebar{transform:translateX(-100%)}
   .hamburger-btn{display:flex}
   .main{margin-left:0}
   .topbar{padding:0 14px}
   .content{padding:16px 14px}
-  /* Fix 6.4 — form grid 1-col on mobile */
   .form-grid{grid-template-columns:1fr}
   .form-span-2{grid-column:span 1}
   .cards-grid{grid-template-columns:1fr}
-  /* Fix 6.10 — panel header stack */
   .panel-header{flex-direction:column;align-items:flex-start}
   .panel-actions{width:100%}
   .search-bar input{width:100%}
-  /* Fix 6.3 — modals */
   .modal,.modal.modal-sm,.modal.modal-lg{width:95vw;max-height:90vh}
-  .modal-body{padding:16px}
-  .modal-header,.modal-footer{padding:14px 16px}
-  /* Fix 6.9 — stats 1-col on small phone */
+  .modal-body{padding:18px}
+  .modal-header,.modal-footer{padding:15px 18px}
   .stats-row{grid-template-columns:1fr 1fr}
 }
 @media(max-width:480px){
@@ -448,12 +666,9 @@ tbody td{padding:11px 16px;font-size:12.5px;color:var(--white);vertical-align:mi
   .stats-row{grid-template-columns:1fr}
   .profile-info-grid{grid-template-columns:1fr}
 }
-/* Fix 6.7 — input tap targets on mobile */
 @media(max-width:600px){
-  .form-group input,.form-group select,.form-group textarea{
-    padding:13px 14px;font-size:16px}/* 16px prevents iOS zoom */
+  .form-group input,.form-group select,.form-group textarea{padding:13px 14px;font-size:16px}
   .btn{padding:11px 18px}
-  .btn.btn-outline[style*="font-size:11px"]{padding:7px 12px}
 }
 </style>
 </head>
@@ -463,19 +678,22 @@ tbody td{padding:11px 16px;font-size:12.5px;color:var(--white);vertical-align:mi
 <div id="login-screen" class="auth-screen">
   <div class="auth-card">
     <div class="auth-crest">
-      <div class="crest-icon">🎖️</div>
-      <div><div class="crest-name">SMC PORTAL</div><div class="crest-sub">Records & Grading System</div></div>
+      <div class="crest-logo"><img id="logo-login" src="https://res.cloudinary.com/di3xaktpd/image/upload/v1777943522/Screenshot_2026-05-05_090450_aooquo.png" alt="SMC Badge"/></div>
+      <div>
+        <div class="crest-name">SMC PORTAL</div>
+        <div class="crest-sub">Records &amp; Grading System</div>
+        <div class="crest-unit">Sergeant Major Course</div>
+      </div>
     </div>
     <div class="auth-divider"></div>
     <div class="auth-title">Authorized Access Only</div>
     <p class="auth-sub">Sign in with your institutional credentials.</p>
     <div class="field"><label>Email</label><input type="email" id="l-email" placeholder="admin@smc.edu.ph" autocomplete="username"/></div>
     <div class="field"><label>Password</label><input type="password" id="l-pass" placeholder="••••••••" autocomplete="current-password"/></div>
-    <!-- Fix 2.1: Role dropdown REMOVED. Role is read from user_metadata, not user-selected -->
-    <button class="btn-primary" id="l-btn" onclick="handleLogin()">Sign In to Portal</button>
+    <button class="btn-primary" id="l-btn" onclick="handleLogin()">Authenticate &amp; Enter Portal</button>
     <div class="auth-error" id="l-err"></div>
     <div class="auth-link"><a onclick="showForgot()">Forgot password?</a></div>
-    <div class="auth-link" style="margin-top:16px;color:var(--muted)">Authorized personnel only · All access is logged</div>
+    <div class="auth-link" style="margin-top:14px;color:var(--muted)">Authorized personnel only &middot; All access is logged</div>
   </div>
 </div>
 
@@ -483,7 +701,7 @@ tbody td{padding:11px 16px;font-size:12.5px;color:var(--white);vertical-align:mi
 <div id="forgot-screen" class="auth-screen" style="display:none">
   <div class="auth-card">
     <div class="auth-crest">
-      <div class="crest-icon">🔑</div>
+      <div class="crest-logo"><img id="logo-forgot" src="https://res.cloudinary.com/di3xaktpd/image/upload/v1777943522/Screenshot_2026-05-05_090450_aooquo.png" alt="SMC Badge"/></div>
       <div><div class="crest-name">SMC PORTAL</div><div class="crest-sub">Password Reset</div></div>
     </div>
     <div class="auth-divider"></div>
@@ -493,21 +711,24 @@ tbody td{padding:11px 16px;font-size:12.5px;color:var(--white);vertical-align:mi
     <button class="btn-primary" onclick="handleForgot()">Send Reset Link</button>
     <div class="auth-error" id="f-err"></div>
     <div class="auth-success" id="f-ok">Reset link sent! Check your email.</div>
-    <div class="auth-link"><a onclick="showLogin()">← Back to Login</a></div>
+    <div class="auth-link"><a onclick="showLogin()">&#8592; Back to Login</a></div>
   </div>
 </div>
 
 <!-- ══ APP ══ -->
 <div id="app">
-  <!-- Fix 6.1 — sidebar overlay for mobile drawer -->
   <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
 
   <!-- SIDEBAR -->
   <nav class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <div class="sidebar-brand">
-        <div class="brand-icon">🎖️</div>
-        <div><div class="brand-text">SMC Portal</div><div class="brand-sub">Admin Portal</div></div>
+        <div class="brand-logo"><img id="logo-sidebar" src="https://res.cloudinary.com/di3xaktpd/image/upload/v1777943522/Screenshot_2026-05-05_090450_aooquo.png" alt="SMC"/></div>
+        <div>
+          <div class="brand-text">SMC Portal</div>
+          <div class="brand-sub">Sergeant Major Course</div>
+          <div class="brand-tag">Kredibilidad</div>
+        </div>
       </div>
     </div>
 
@@ -559,7 +780,6 @@ tbody td{padding:11px 16px;font-size:12.5px;color:var(--white);vertical-align:mi
   <!-- MAIN -->
   <div class="main">
     <div class="topbar">
-      <!-- Fix 6.6 — hamburger on left of topbar -->
       <div style="display:flex;align-items:center;gap:12px">
         <button class="hamburger-btn" id="hamburger-btn" onclick="toggleSidebar()" aria-label="Toggle menu">☰</button>
         <div class="breadcrumb">
@@ -580,14 +800,12 @@ tbody td{padding:11px 16px;font-size:12.5px;color:var(--white);vertical-align:mi
             <div class="hero-label">SMC — Student Records System</div>
             <div class="hero-title">Administration Hub</div>
             <div class="hero-desc">Manage cadet enrollment, academic records, grades, and disciplinary logs from one unified portal.</div>
-            <!-- Fix 6.5 — mobile hero stats strip -->
             <div class="hero-stats-mobile">
               <div class="hero-stat-mobile"><div class="hero-stat-num" id="ds-cadets-m">—</div><div class="hero-stat-lbl">Cadets</div></div>
               <div class="hero-stat-mobile"><div class="hero-stat-num" id="ds-courses-m">—</div><div class="hero-stat-lbl">Courses</div></div>
               <div class="hero-stat-mobile"><div class="hero-stat-num">SY 25</div><div class="hero-stat-lbl">Current Year</div></div>
             </div>
           </div>
-          <!-- Desktop stats -->
           <div class="hero-stats">
             <div class="hero-stat"><div class="hero-stat-num" id="ds-cadets">—</div><div class="hero-stat-lbl">Cadets</div></div>
             <div class="hero-stat"><div class="hero-stat-num" id="ds-courses">—</div><div class="hero-stat-lbl">Courses</div></div>
@@ -607,7 +825,7 @@ tbody td{padding:11px 16px;font-size:12.5px;color:var(--white);vertical-align:mi
           <div class="op-card" data-roles="administrator,registrar,instructor" onclick="nav('grades',null)"><div class="op-card-icon ic-green">📊</div><div class="op-card-title">Grading System</div><div class="op-card-desc">View, filter, and manage all academic grades per subject and term.</div></div>
           <div class="op-card" data-roles="administrator,registrar" onclick="nav('courses',null)"><div class="op-card-icon ic-purple">📋</div><div class="op-card-title">Course Management</div><div class="op-card-desc">Add or update courses, assign instructors and set unit weights.</div></div>
           <div class="op-card" data-roles="administrator,registrar" onclick="nav('violations',null)"><div class="op-card-icon ic-red">⚠️</div><div class="op-card-title">Violations Log</div><div class="op-card-desc">Record and track disciplinary violations with automatic tier tracking.</div></div>
-          <div class="op-card" data-roles="administrator,registrar" onclick="nav('reports',null)"><div class="op-card-icon ic-teal">📄</div><div class="op-card-title">Reports & Transcripts</div><div class="op-card-desc">Generate and print official grade reports and cadet transcripts.</div></div>
+          <div class="op-card" data-roles="administrator,registrar" onclick="nav('reports',null)"><div class="op-card-icon ic-teal">📄</div><div class="op-card-title">Reports &amp; Transcripts</div><div class="op-card-desc">Generate and print official grade reports and cadet transcripts.</div></div>
           <div class="op-card" data-roles="cadet" onclick="nav('my-grades',null)"><div class="op-card-icon ic-gold">📊</div><div class="op-card-title">My Grades</div><div class="op-card-desc">View your academic performance records and computed grades.</div></div>
           <div class="op-card" data-roles="cadet,instructor" onclick="nav('my-profile',null)"><div class="op-card-icon ic-blue">👤</div><div class="op-card-title">My Profile</div><div class="op-card-desc">View and manage your personal and academic profile information.</div></div>
         </div>
@@ -623,69 +841,34 @@ tbody td{padding:11px 16px;font-size:12.5px;color:var(--white);vertical-align:mi
               <button class="btn btn-gold" onclick="nav('enroll',null)">+ Enroll</button>
             </div>
           </div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Cadet ID</th><th>Full Name</th><th>Course</th><th>Year</th><th>Section</th><th>Status</th><th>Actions</th></tr></thead>
-              <tbody id="cadet-tbody"><tr class="loading-row"><td colspan="7"><span class="spinner"></span>Loading cadets…</td></tr></tbody>
-            </table>
-          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Cadet ID</th><th>Full Name</th><th>Course</th><th>Year</th><th>Section</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="cadet-tbody"><tr class="loading-row"><td colspan="7"><span class="spinner"></span>Loading cadets…</td></tr></tbody>
+          </table></div>
         </div>
       </div>
 
       <!-- ══ ENROLL CADET ══ -->
       <div class="page" id="page-enroll">
         <div class="panel">
-          <div class="panel-header">
-            <div><div class="panel-title">Enroll New Cadet</div><div class="panel-sub">Complete all required fields to register a cadet.</div></div>
-          </div>
+          <div class="panel-header"><div><div class="panel-title">Enroll New Cadet</div><div class="panel-sub">Complete all required fields to register a cadet.</div></div></div>
           <div class="form-body">
             <div class="form-grid">
-              <div class="form-group">
-                <label>Cadet ID Number *</label>
-                <input type="text" id="e-id" placeholder="SMC-2025-001"/>
-                <div class="field-error" id="e-id-err">Cadet ID is required.</div>
-              </div>
-              <div class="form-group">
-                <label>Email (for portal login)</label>
-                <input type="email" id="e-email" placeholder="cadet@smc.edu.ph"/>
-              </div>
-              <div class="form-group">
-                <label>Last Name *</label>
-                <input type="text" id="e-lname" placeholder="Dela Cruz"/>
-                <div class="field-error" id="e-lname-err">Last name is required.</div>
-              </div>
-              <div class="form-group">
-                <label>First Name *</label>
-                <input type="text" id="e-fname" placeholder="Juan"/>
-                <div class="field-error" id="e-fname-err">First name is required.</div>
-              </div>
+              <div class="form-group"><label>Cadet ID Number *</label><input type="text" id="e-id" placeholder="SMC-2025-001"/><div class="field-error" id="e-id-err">Cadet ID is required.</div></div>
+              <div class="form-group"><label>Email (for portal login)</label><input type="email" id="e-email" placeholder="cadet@smc.edu.ph"/></div>
+              <div class="form-group"><label>Last Name *</label><input type="text" id="e-lname" placeholder="Dela Cruz"/><div class="field-error" id="e-lname-err">Last name is required.</div></div>
+              <div class="form-group"><label>First Name *</label><input type="text" id="e-fname" placeholder="Juan"/><div class="field-error" id="e-fname-err">First name is required.</div></div>
               <div class="form-group"><label>Middle Name</label><input type="text" id="e-mname" placeholder="Santos"/></div>
-              <div class="form-group"><label>Gender</label>
-                <select id="e-gender"><option value="">— Select —</option><option>Male</option><option>Female</option></select>
-              </div>
-              <div class="form-group">
-                <label>Course / Program *</label>
-                <select id="e-course">
-                  <option value="">— Select Course —</option>
-                  <option>Bachelor of Science in Criminology</option>
-                  <option>Bachelor of Science in Criminal Justice</option>
-                  <option>ROTC Program</option>
-                  <option>Citizens Military Training</option>
-                </select>
-                <div class="field-error" id="e-course-err">Please select a course.</div>
-              </div>
-              <div class="form-group"><label>Year Level</label>
-                <select id="e-year"><option value="1st Year">1st Year</option><option value="2nd Year">2nd Year</option><option value="3rd Year">3rd Year</option><option value="4th Year">4th Year</option></select>
-              </div>
+              <div class="form-group"><label>Gender</label><select id="e-gender"><option value="">— Select —</option><option>Male</option><option>Female</option></select></div>
+              <div class="form-group"><label>Course / Program *</label><select id="e-course"><option value="">— Select Course —</option><option>Bachelor of Science in Criminology</option><option>Bachelor of Science in Criminal Justice</option><option>ROTC Program</option><option>Citizens Military Training</option></select><div class="field-error" id="e-course-err">Please select a course.</div></div>
+              <div class="form-group"><label>Year Level</label><select id="e-year"><option value="1st Year">1st Year</option><option value="2nd Year">2nd Year</option><option value="3rd Year">3rd Year</option><option value="4th Year">4th Year</option></select></div>
               <div class="form-group"><label>Section</label><input type="text" id="e-section" placeholder="Alpha"/></div>
-              <div class="form-group"><label>Enrollment Status</label>
-                <select id="e-status"><option value="active">Active</option><option value="irregular">Irregular</option><option value="on-leave">On Leave</option></select>
-              </div>
+              <div class="form-group"><label>Enrollment Status</label><select id="e-status"><option value="active">Active</option><option value="irregular">Irregular</option><option value="on-leave">On Leave</option></select></div>
               <div class="form-group form-span-2"><label>Notes / Remarks</label><textarea id="e-notes" placeholder="Optional notes…"></textarea></div>
             </div>
             <div class="form-actions" style="margin-top:14px">
               <button class="btn btn-outline" onclick="nav('cadets',null)">Cancel</button>
-              <button class="btn btn-gold" onclick="enrollCadet()">Save & Enroll</button>
+              <button class="btn btn-gold" onclick="enrollCadet()">Save &amp; Enroll</button>
             </div>
           </div>
         </div>
@@ -698,12 +881,10 @@ tbody td{padding:11px 16px;font-size:12.5px;color:var(--white);vertical-align:mi
             <div><div class="panel-title">Course List</div><div class="panel-sub">All active courses this academic year</div></div>
             <button class="btn btn-gold" onclick="openModal('course-modal');document.getElementById('course-modal-title').textContent='Add New Course';clearCourseForm()">+ Add Course</button>
           </div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Code</th><th>Course Title</th><th>Units</th><th>Instructor</th><th>Enrolled</th><th>Status</th><th>Actions</th></tr></thead>
-              <tbody id="course-tbody"><tr class="loading-row"><td colspan="7"><span class="spinner"></span>Loading courses…</td></tr></tbody>
-            </table>
-          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Code</th><th>Course Title</th><th>Units</th><th>Instructor</th><th>Enrolled</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="course-tbody"><tr class="loading-row"><td colspan="7"><span class="spinner"></span>Loading courses…</td></tr></tbody>
+          </table></div>
         </div>
       </div>
 
@@ -714,56 +895,38 @@ tbody td{padding:11px 16px;font-size:12.5px;color:var(--white);vertical-align:mi
             <div><div class="panel-title">Grading System</div><div class="panel-sub">Academic performance records per cadet and course</div></div>
             <div class="search-bar"><input type="text" placeholder="Search…" oninput="filterTbl('grade-tbody',this.value)"/></div>
           </div>
-          <!-- Fix 3.3 & 4.5 — grade filters target specific table; SY filter added -->
           <div class="grade-filters" id="grade-term-filters">
             <button class="filter-chip active" onclick="setGradeFilter(this,'all','grade-tbody')">All</button>
             <button class="filter-chip" onclick="setGradeFilter(this,'prelim','grade-tbody')">Prelim</button>
             <button class="filter-chip" onclick="setGradeFilter(this,'midterm','grade-tbody')">Midterm</button>
             <button class="filter-chip" onclick="setGradeFilter(this,'final','grade-tbody')">Final</button>
           </div>
-          <div class="grade-filters" id="grade-sy-filters" style="border-bottom:1px solid var(--border);padding:8px 20px">
+          <div class="grade-filters" id="grade-sy-filters" style="border-bottom:1px solid var(--border);padding:8px 22px">
             <span style="font-size:10.5px;color:var(--muted);margin-right:6px;line-height:2">SY:</span>
             <button class="filter-chip active" onclick="setSYFilter(this,'all')">All Years</button>
           </div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Cadet ID</th><th>Name</th><th>Course</th><th>Term</th><th>SY</th><th>Prelim</th><th>Midterm</th><th>Final</th><th>Computed</th><th>Remarks</th><th>Actions</th></tr></thead>
-              <tbody id="grade-tbody"><tr class="loading-row"><td colspan="11"><span class="spinner"></span>Loading grades…</td></tr></tbody>
-            </table>
-          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Cadet ID</th><th>Name</th><th>Course</th><th>Term</th><th>SY</th><th>Prelim</th><th>Midterm</th><th>Final</th><th>Computed</th><th>Remarks</th><th>Actions</th></tr></thead>
+            <tbody id="grade-tbody"><tr class="loading-row"><td colspan="11"><span class="spinner"></span>Loading grades…</td></tr></tbody>
+          </table></div>
         </div>
       </div>
 
       <!-- ══ ENCODE GRADES ══ -->
       <div class="page" id="page-encode-grade">
         <div class="panel">
-          <div class="panel-header">
-            <div><div class="panel-title">Encode Grades</div><div class="panel-sub">Input a cadet's grade for a specific course and term.</div></div>
-          </div>
+          <div class="panel-header"><div><div class="panel-title">Encode Grades</div><div class="panel-sub">Input a cadet's grade for a specific course and term.</div></div></div>
           <div class="form-body">
             <div class="form-grid">
-              <div class="form-group">
-                <label>Cadet *</label>
-                <select id="g-cadet"><option value="">— Select Cadet —</option></select>
-                <div class="field-error" id="g-cadet-err">Please select a cadet.</div>
-              </div>
-              <div class="form-group">
-                <label>Course *</label>
-                <select id="g-course"><option value="">— Select Course —</option></select>
-                <div class="field-error" id="g-course-err">Please select a course.</div>
-              </div>
-              <div class="form-group"><label>Academic Term</label>
-                <select id="g-term"><option value="prelim">Prelim</option><option value="midterm">Midterm</option><option value="final">Final</option></select>
-              </div>
+              <div class="form-group"><label>Cadet *</label><select id="g-cadet"><option value="">— Select Cadet —</option></select><div class="field-error" id="g-cadet-err">Please select a cadet.</div></div>
+              <div class="form-group"><label>Course *</label><select id="g-course"><option value="">— Select Course —</option></select><div class="field-error" id="g-course-err">Please select a course.</div></div>
+              <div class="form-group"><label>Academic Term</label><select id="g-term"><option value="prelim">Prelim</option><option value="midterm">Midterm</option><option value="final">Final</option></select></div>
               <div class="form-group"><label>School Year</label><input type="text" id="g-sy" value="2024-2025"/></div>
               <div class="form-group"><label>Prelim (0–100)</label><input type="number" id="g-prelim" min="0" max="100" placeholder="85" oninput="computeGrade()"/></div>
               <div class="form-group"><label>Midterm (0–100)</label><input type="number" id="g-midterm" min="0" max="100" placeholder="88" oninput="computeGrade()"/></div>
               <div class="form-group"><label>Final Exam (0–100)</label><input type="number" id="g-final" min="0" max="100" placeholder="90" oninput="computeGrade()"/></div>
-              <!-- Fix 5.3 — computed shows partial note -->
               <div class="form-group"><label>Computed Grade</label><input type="text" id="g-computed" readonly placeholder="Enter grades above" style="opacity:.7"/></div>
-              <div class="form-group form-span-2"><label>Instructor Remarks</label>
-                <textarea id="g-remarks" placeholder="Passed, Failed, Incomplete, Conditionally Passed…"></textarea>
-              </div>
+              <div class="form-group form-span-2"><label>Instructor Remarks</label><textarea id="g-remarks" placeholder="Passed, Failed, Incomplete, Conditionally Passed…"></textarea></div>
             </div>
             <div class="form-actions" style="margin-top:14px">
               <button class="btn btn-outline" onclick="nav('grades',null)">Cancel</button>
@@ -783,19 +946,16 @@ tbody td{padding:11px 16px;font-size:12.5px;color:var(--white);vertical-align:mi
               <button class="btn btn-gold" onclick="openViolModal()">+ Log Violation</button>
             </div>
           </div>
-          <!-- Fix 4.6 — tier filter chips -->
           <div class="grade-filters">
             <button class="filter-chip active" onclick="setViolFilter(this,'all')">All</button>
             <button class="filter-chip" onclick="setViolFilter(this,'warning')">⚠️ Warning</button>
             <button class="filter-chip" onclick="setViolFilter(this,'probation')">🔴 Probation</button>
             <button class="filter-chip" onclick="setViolFilter(this,'suspension')">🚫 Suspension</button>
           </div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Date</th><th>Cadet ID</th><th>Cadet Name</th><th>Violation Type</th><th>Tier</th><th>Status</th><th>Logged By</th><th>Actions</th></tr></thead>
-              <tbody id="viol-tbody"><tr class="loading-row"><td colspan="8"><span class="spinner"></span>Loading violations…</td></tr></tbody>
-            </table>
-          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Date</th><th>Cadet ID</th><th>Cadet Name</th><th>Violation Type</th><th>Tier</th><th>Status</th><th>Logged By</th><th>Actions</th></tr></thead>
+            <tbody id="viol-tbody"><tr class="loading-row"><td colspan="8"><span class="spinner"></span>Loading violations…</td></tr></tbody>
+          </table></div>
         </div>
       </div>
 
@@ -804,7 +964,7 @@ tbody td{padding:11px 16px;font-size:12.5px;color:var(--white);vertical-align:mi
         <div class="hero-banner" style="margin-bottom:22px">
           <div>
             <div class="hero-label">Academic Reports</div>
-            <div class="hero-title">Reports & Transcripts</div>
+            <div class="hero-title">Reports &amp; Transcripts</div>
             <div class="hero-desc">Generate and print official grade reports and cadet transcripts from live records.</div>
           </div>
         </div>
@@ -833,12 +993,10 @@ tbody td{padding:11px 16px;font-size:12.5px;color:var(--white);vertical-align:mi
             <div><div class="panel-title">User Management</div><div class="panel-sub">Manage system accounts and role-based access control</div></div>
             <button class="btn btn-gold" onclick="openModal('user-modal');editingUserId=null;document.getElementById('user-modal-title').textContent='Add System User'">+ Add User</button>
           </div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Cadet ID</th><th>Created</th><th>Actions</th></tr></thead>
-              <tbody id="user-tbody"><tr class="loading-row"><td colspan="6"><span class="spinner"></span>Loading users…</td></tr></tbody>
-            </table>
-          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Cadet ID</th><th>Created</th><th>Actions</th></tr></thead>
+            <tbody id="user-tbody"><tr class="loading-row"><td colspan="6"><span class="spinner"></span>Loading users…</td></tr></tbody>
+          </table></div>
         </div>
       </div>
 
@@ -849,12 +1007,10 @@ tbody td{padding:11px 16px;font-size:12.5px;color:var(--white);vertical-align:mi
             <div><div class="panel-title">Audit Log</div><div class="panel-sub">All create, update, and delete actions performed in the system</div></div>
             <div class="search-bar"><input type="text" placeholder="Search audit…" oninput="filterTbl('audit-tbody',this.value)"/></div>
           </div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Timestamp</th><th>Action</th><th>Module</th><th>Record</th><th>Details</th><th>Performed By</th></tr></thead>
-              <tbody id="audit-tbody"><tr class="loading-row"><td colspan="6"><span class="spinner"></span>Loading audit log…</td></tr></tbody>
-            </table>
-          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Timestamp</th><th>Action</th><th>Module</th><th>Record</th><th>Details</th><th>Performed By</th></tr></thead>
+            <tbody id="audit-tbody"><tr class="loading-row"><td colspan="6"><span class="spinner"></span>Loading audit log…</td></tr></tbody>
+          </table></div>
         </div>
       </div>
 
@@ -870,7 +1026,6 @@ tbody td{padding:11px 16px;font-size:12.5px;color:var(--white);vertical-align:mi
         <div class="panel">
           <div class="panel-header">
             <div><div class="panel-title">Grade Records</div></div>
-            <!-- Fix 3.3 — separate filter targeting my-grade-tbody -->
             <div style="display:flex;gap:6px;flex-wrap:wrap">
               <button class="filter-chip active" onclick="setGradeFilter(this,'all','my-grade-tbody')">All Terms</button>
               <button class="filter-chip" onclick="setGradeFilter(this,'prelim','my-grade-tbody')">Prelim</button>
@@ -878,12 +1033,10 @@ tbody td{padding:11px 16px;font-size:12.5px;color:var(--white);vertical-align:mi
               <button class="filter-chip" onclick="setGradeFilter(this,'final','my-grade-tbody')">Final</button>
             </div>
           </div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Course</th><th>Term</th><th>SY</th><th>Prelim</th><th>Midterm</th><th>Final</th><th>Computed</th><th>Remarks</th></tr></thead>
-              <tbody id="my-grade-tbody"><tr class="loading-row"><td colspan="8"><span class="spinner"></span>Loading your grades…</td></tr></tbody>
-            </table>
-          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Course</th><th>Term</th><th>SY</th><th>Prelim</th><th>Midterm</th><th>Final</th><th>Computed</th><th>Remarks</th></tr></thead>
+            <tbody id="my-grade-tbody"><tr class="loading-row"><td colspan="8"><span class="spinner"></span>Loading your grades…</td></tr></tbody>
+          </table></div>
         </div>
       </div>
 
@@ -898,21 +1051,12 @@ tbody td{padding:11px 16px;font-size:12.5px;color:var(--white);vertical-align:mi
             <div class="profile-info-grid" id="prof-info"></div>
           </div>
         </div>
-        <!-- Fix 4.3 — change password section -->
         <div class="panel" style="margin-top:16px" id="change-password-panel">
           <div class="panel-header"><div class="panel-title">Change Password</div></div>
           <div class="form-body" style="max-width:400px">
-            <div class="form-group" style="margin-bottom:14px">
-              <label>New Password</label>
-              <input type="password" id="cp-pass" placeholder="Minimum 6 characters"/>
-            </div>
-            <div class="form-group" style="margin-bottom:14px">
-              <label>Confirm New Password</label>
-              <input type="password" id="cp-confirm" placeholder="Re-enter password"/>
-            </div>
-            <div class="form-actions">
-              <button class="btn btn-gold" onclick="changePassword()">Update Password</button>
-            </div>
+            <div class="form-group" style="margin-bottom:14px"><label>New Password</label><input type="password" id="cp-pass" placeholder="Minimum 6 characters"/></div>
+            <div class="form-group" style="margin-bottom:14px"><label>Confirm New Password</label><input type="password" id="cp-confirm" placeholder="Re-enter password"/></div>
+            <div class="form-actions"><button class="btn btn-gold" onclick="changePassword()">Update Password</button></div>
           </div>
         </div>
       </div>
@@ -922,15 +1066,11 @@ tbody td{padding:11px 16px;font-size:12.5px;color:var(--white);vertical-align:mi
         <div class="panel">
           <div class="panel-header"><div class="panel-title">System Settings</div></div>
           <div class="form-body" style="max-width:560px">
-            <div class="form-group" style="margin-bottom:14px"><label>Institution Name</label><input type="text" value="SMC — Records & Grading System"/></div>
+            <div class="form-group" style="margin-bottom:14px"><label>Institution Name</label><input type="text" value="SMC — Records &amp; Grading System"/></div>
             <div class="form-group" style="margin-bottom:14px"><label>Current Academic Year</label><input type="text" value="2024–2025"/></div>
-            <div class="form-group" style="margin-bottom:14px"><label>Current Semester</label>
-              <select><option>1st Semester</option><option>2nd Semester</option><option>Summer</option></select>
-            </div>
+            <div class="form-group" style="margin-bottom:14px"><label>Current Semester</label><select><option>1st Semester</option><option>2nd Semester</option><option>Summer</option></select></div>
             <div class="form-group" style="margin-bottom:14px"><label>Passing Grade (%)</label><input type="number" value="75"/></div>
-            <div class="form-group" style="margin-bottom:14px"><label>Grade Formula</label>
-              <select><option>30% Prelim / 30% Midterm / 40% Final</option><option>25% Prelim / 35% Midterm / 40% Final</option></select>
-            </div>
+            <div class="form-group" style="margin-bottom:14px"><label>Grade Formula</label><select><option>30% Prelim / 30% Midterm / 40% Final</option><option>25% Prelim / 35% Midterm / 40% Final</option></select></div>
             <div class="form-actions"><button class="btn btn-gold" onclick="showToast('Settings saved.','success')">Save Settings</button></div>
           </div>
         </div>
@@ -941,8 +1081,6 @@ tbody td{padding:11px 16px;font-size:12.5px;color:var(--white);vertical-align:mi
 </div><!-- /app -->
 
 <!-- ══ MODALS ══ -->
-
-<!-- EDIT CADET — Fix 5.5: added middle name, gender, email -->
 <div class="modal-overlay" id="edit-cadet-modal">
   <div class="modal modal-lg">
     <div class="modal-header"><div class="modal-title">Edit Cadet Record</div><button class="modal-close" onclick="closeModal('edit-cadet-modal')">×</button></div>
@@ -969,7 +1107,6 @@ tbody td{padding:11px 16px;font-size:12.5px;color:var(--white);vertical-align:mi
   </div>
 </div>
 
-<!-- EDIT GRADE -->
 <div class="modal-overlay" id="edit-grade-modal">
   <div class="modal">
     <div class="modal-header"><div class="modal-title">Edit Grade Record</div><button class="modal-close" onclick="closeModal('edit-grade-modal')">×</button></div>
@@ -990,7 +1127,6 @@ tbody td{padding:11px 16px;font-size:12.5px;color:var(--white);vertical-align:mi
   </div>
 </div>
 
-<!-- COURSE MODAL -->
 <div class="modal-overlay" id="course-modal">
   <div class="modal">
     <div class="modal-header"><div class="modal-title" id="course-modal-title">Add New Course</div><button class="modal-close" onclick="closeModal('course-modal')">×</button></div>
@@ -1011,23 +1147,15 @@ tbody td{padding:11px 16px;font-size:12.5px;color:var(--white);vertical-align:mi
   </div>
 </div>
 
-<!-- VIOLATION MODAL -->
 <div class="modal-overlay" id="viol-modal">
   <div class="modal">
     <div class="modal-header"><div class="modal-title">Log Disciplinary Violation</div><button class="modal-close" onclick="closeModal('viol-modal')">×</button></div>
     <div class="modal-body">
       <input type="hidden" id="vm-id"/>
       <div class="form-grid">
-        <div class="form-group">
-          <label>Cadet *</label>
-          <select id="vm-cadet"><option value="">— Select Cadet —</option></select>
-          <div class="field-error" id="vm-cadet-err">Please select a cadet.</div>
-        </div>
-        <!-- Fix 5.6 — date defaults to today (set via JS on open) -->
+        <div class="form-group"><label>Cadet *</label><select id="vm-cadet"><option value="">— Select Cadet —</option></select><div class="field-error" id="vm-cadet-err">Please select a cadet.</div></div>
         <div class="form-group"><label>Date of Incident</label><input type="date" id="vm-date"/></div>
-        <div class="form-group form-span-2"><label>Violation Type *</label>
-          <select id="vm-type"><option>Tardiness</option><option>Uniform Violation</option><option>AWOL</option><option>Insubordination</option><option>Academic Dishonesty</option><option>Disrespect</option><option>Other</option></select>
-        </div>
+        <div class="form-group form-span-2"><label>Violation Type *</label><select id="vm-type"><option>Tardiness</option><option>Uniform Violation</option><option>AWOL</option><option>Insubordination</option><option>Academic Dishonesty</option><option>Disrespect</option><option>Other</option></select></div>
         <div class="form-group form-span-2"><label>Description / Notes</label><textarea id="vm-notes" placeholder="Describe the incident…"></textarea></div>
       </div>
     </div>
@@ -1038,7 +1166,6 @@ tbody td{padding:11px 16px;font-size:12.5px;color:var(--white);vertical-align:mi
   </div>
 </div>
 
-<!-- USER MODAL — Fix 2.2: uses signUp flow -->
 <div class="modal-overlay" id="user-modal">
   <div class="modal">
     <div class="modal-header"><div class="modal-title" id="user-modal-title">Add System User</div><button class="modal-close" onclick="closeModal('user-modal')">×</button></div>
@@ -1046,19 +1173,10 @@ tbody td{padding:11px 16px;font-size:12.5px;color:var(--white);vertical-align:mi
       <input type="hidden" id="um-id"/>
       <div class="form-group" style="margin-bottom:14px"><label>Full Name *</label><input type="text" id="um-name" placeholder="Juan Dela Cruz"/></div>
       <div class="form-group" style="margin-bottom:14px"><label>Email *</label><input type="email" id="um-email" placeholder="user@smc.edu.ph"/></div>
-      <div class="form-group" style="margin-bottom:14px"><label>Role *</label>
-        <select id="um-role" onchange="toggleCadetField()">
-          <option value="administrator">Administrator</option>
-          <option value="registrar">Registrar</option>
-          <option value="instructor">Instructor</option>
-          <option value="cadet">Cadet</option>
-        </select>
-      </div>
-      <div class="form-group" id="um-cadet-field" style="display:none;margin-bottom:14px"><label>Linked Cadet ID</label>
-        <select id="um-cadet-id"><option value="">— Select Cadet —</option></select>
-      </div>
+      <div class="form-group" style="margin-bottom:14px"><label>Role *</label><select id="um-role" onchange="toggleCadetField()"><option value="administrator">Administrator</option><option value="registrar">Registrar</option><option value="instructor">Instructor</option><option value="cadet">Cadet</option></select></div>
+      <div class="form-group" id="um-cadet-field" style="display:none;margin-bottom:14px"><label>Linked Cadet ID</label><select id="um-cadet-id"><option value="">— Select Cadet —</option></select></div>
       <div class="form-group" id="um-pass-field" style="margin-bottom:8px"><label>Temporary Password *</label><input type="password" id="um-pass" placeholder="Minimum 6 characters"/></div>
-      <p style="font-size:11px;color:var(--muted)">Note: A confirmation email will be sent. User must verify before first login. You may disable email confirmation in Supabase Auth settings.</p>
+      <p style="font-size:11px;color:var(--muted)">Note: A confirmation email will be sent. User must verify before first login.</p>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('user-modal')">Cancel</button>
@@ -1067,10 +1185,9 @@ tbody td{padding:11px 16px;font-size:12.5px;color:var(--white);vertical-align:mi
   </div>
 </div>
 
-<!-- CONFIRM DELETE — Fix 3.7: uses pendingDeleteFn, no inline callback -->
 <div class="modal-overlay" id="confirm-modal">
   <div class="modal modal-sm">
-    <div class="modal-body" style="padding:32px 28px">
+    <div class="modal-body" style="padding:34px 30px">
       <div class="confirm-icon">🗑️</div>
       <div class="confirm-msg" id="confirm-msg">Are you sure you want to delete this record?</div>
       <div class="confirm-sub" id="confirm-sub">This action cannot be undone.</div>
@@ -1082,10 +1199,18 @@ tbody td{padding:11px 16px;font-size:12.5px;color:var(--white);vertical-align:mi
   </div>
 </div>
 
-<!-- TOAST — Fix 5.9: duration is passed per call -->
 <div id="toast"><span id="toast-icon">✅</span><span id="toast-msg">Done.</span></div>
 
 <script>
+// ══ LOGO INJECTION ══
+(function(){
+  const LOGO = 'https://res.cloudinary.com/di3xaktpd/image/upload/v1777943522/Screenshot_2026-05-05_090450_aooquo.png';
+  ['logo-login','logo-forgot','logo-sidebar'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.src=LOGO;
+  });
+})();
+
 /* ══════════════════════════════════════
    CONFIG & SUPABASE
 ══════════════════════════════════════ */
@@ -1093,16 +1218,15 @@ const SUPABASE_URL  = 'https://eglfvisxzfdqnasypwtv.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVnbGZ2aXN4emZkcW5hc3lwd3R2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4MTc0MTEsImV4cCI6MjA5MzM5MzQxMX0.59GGn05-bHC_0tstWNLs_-Vsdy-y58f_zcoMi5q7vUw';
 
 const IS_DEMO = SUPABASE_URL.includes('YOUR_PROJECT') || SUPABASE_ANON.includes('YOUR_ANON');
-const ENABLE_BOOTSTRAP_ADMIN = true; // temporary: remove after creating a real admin user
+const ENABLE_BOOTSTRAP_ADMIN = true;
 const BOOTSTRAP_ADMIN_EMAIL = 'bootstrap@smc.local';
 const BOOTSTRAP_ADMIN_PASSWORD = 'Admin123!';
 let sbClient = null;
 let currentUser = null;
 let editingViolId = null;
 let editingUserId = null;
-
-/* Fix 3.7 — pending delete callback (avoids apostrophe-in-onclick bugs) */
 let pendingDeleteFn = null;
+
 function confirmDelete(msg, sub, cb) {
   pendingDeleteFn = cb;
   document.getElementById('confirm-msg').textContent = msg;
@@ -1113,31 +1237,19 @@ function executePendingDelete() {
   if (pendingDeleteFn) { pendingDeleteFn(); pendingDeleteFn = null; }
 }
 
-/* Fix 7.1 — simple data cache */
 const _cache = {};
 function cacheSet(key, data) { _cache[key] = { data, ts: Date.now() }; }
-function cacheGet(key, ttl = 60000) {
-  const e = _cache[key];
-  if (e && Date.now() - e.ts < ttl) return e.data;
-  return null;
-}
+function cacheGet(key, ttl = 60000) { const e = _cache[key]; if (e && Date.now() - e.ts < ttl) return e.data; return null; }
 function cacheInvalidate(...keys) { keys.forEach(k => delete _cache[k]); }
 
-/* Fix 7.4 — global error handler */
-window.onerror = (msg, src, line, col, err) => {
-  console.error('Unhandled error:', err);
-  showToast('An unexpected error occurred. Please refresh.', 'error');
-};
-window.onunhandledrejection = e => {
-  console.error('Unhandled promise rejection:', e.reason);
-};
+window.onerror = (msg, src, line, col, err) => { console.error('Unhandled error:', err); showToast('An unexpected error occurred. Please refresh.', 'error'); };
+window.onunhandledrejection = e => { console.error('Unhandled promise rejection:', e.reason); };
 
 function initSB(url, key) {
   try { sbClient = window.supabase.createClient(url || SUPABASE_URL, key || SUPABASE_ANON); return true; }
   catch(e) { console.warn('SB init failed', e); return false; }
 }
 
-/* ── DEMO DATA ── */
 const DEMO_CADETS = [
   {id:'d1',cadet_id:'SMC-2025-001',last_name:"Dela Cruz",first_name:'Juan',middle_name:'Santos',gender:'Male',course:'BS Criminology',year_level:'2nd Year',section:'Alpha',status:'active',notes:'',email:'juan@smc.edu.ph'},
   {id:'d2',cadet_id:'SMC-2025-002',last_name:'Santos',first_name:'Maria',middle_name:'',gender:'Female',course:'BS Criminal Justice',year_level:'1st Year',section:'Bravo',status:'active',notes:'',email:'maria@smc.edu.ph'},
@@ -1165,81 +1277,55 @@ const DEMO_USERS = [
   {id:'u2',name:'Registrar Office',email:'registrar@smc.edu.ph',role:'registrar',cadet_id:null,created:'2025-01-02'},
   {id:'u3',name:"Dela Cruz, Juan",email:'juan@smc.edu.ph',role:'cadet',cadet_id:'SMC-2025-001',created:'2025-01-10'},
 ];
-/* Fix 3.6 — DEMO_AUDIT is managed with a cap */
 const DEMO_AUDIT = [];
 
-/* ══════════════════════════════════════
-   AUTH — Fix 2.1, 2.3
-══════════════════════════════════════ */
 async function handleLogin() {
   const email = document.getElementById('l-email').value.trim();
   const pass  = document.getElementById('l-pass').value;
   const btn   = document.getElementById('l-btn');
   const err   = document.getElementById('l-err');
   if (!email || !pass) { showAuthError('l-err', 'Please enter email and password.'); return; }
-  btn.textContent = 'Signing in…'; btn.disabled = true;
+  btn.textContent = 'Authenticating…'; btn.disabled = true;
   err.classList.remove('show');
 
   if (ENABLE_BOOTSTRAP_ADMIN && email === BOOTSTRAP_ADMIN_EMAIL && pass === BOOTSTRAP_ADMIN_PASSWORD) {
     initSB();
     let authResult = await sbClient.auth.signInWithPassword({ email, password: pass });
     if (authResult.error) {
-      const signUpResult = await sbClient.auth.signUp({
-        email, password: pass,
-        options: { data: { name: 'Bootstrap Admin', role: 'administrator', cadet_id: null } }
-      });
-      if (signUpResult.error && !signUpResult.data?.user) {
-        showAuthError('l-err', 'Bootstrap admin setup failed: ' + signUpResult.error.message);
-        btn.textContent = 'Sign In to Portal'; btn.disabled = false;
-        return;
-      }
+      const signUpResult = await sbClient.auth.signUp({ email, password: pass, options: { data: { name: 'Bootstrap Admin', role: 'administrator', cadet_id: null } } });
+      if (signUpResult.error && !signUpResult.data?.user) { showAuthError('l-err', 'Bootstrap admin setup failed: ' + signUpResult.error.message); btn.textContent = 'Authenticate & Enter Portal'; btn.disabled = false; return; }
       authResult = await sbClient.auth.signInWithPassword({ email, password: pass });
-      if (authResult.error) {
-        showAuthError('l-err', 'Bootstrap admin sign in failed: ' + authResult.error.message);
-        btn.textContent = 'Sign In to Portal'; btn.disabled = false;
-        return;
-      }
+      if (authResult.error) { showAuthError('l-err', 'Bootstrap admin sign in failed: ' + authResult.error.message); btn.textContent = 'Authenticate & Enter Portal'; btn.disabled = false; return; }
     }
-
     const user = authResult.data.user;
     const meta = user.user_metadata || {};
     currentUser = { email: user.email, role: 'administrator', name: meta.name || 'Bootstrap Admin', cadet_id: meta.cadet_id || null, uid: user.id };
     sessionStorage.setItem('smc_user', JSON.stringify(currentUser));
-    showToast('Bootstrap admin signed in. Create a real admin account now and remove this fallback.', 'success', 6000);
-    enterApp();
-    btn.textContent = 'Sign In to Portal'; btn.disabled = false;
-    return;
+    showToast('Bootstrap admin signed in. Create a real admin account now.', 'success', 6000);
+    enterApp(); btn.textContent = 'Authenticate & Enter Portal'; btn.disabled = false; return;
   }
 
   if (IS_DEMO) {
-    /* Demo mode: assign role by email domain hint */
     let role = 'cadet';
     if (email.includes('admin')) role = 'administrator';
     else if (email.includes('registrar')) role = 'registrar';
     else if (email.includes('instructor')) role = 'instructor';
     currentUser = { email, role, name: email.split('@')[0], cadet_id: role === 'cadet' ? 'SMC-2025-001' : null };
-    enterApp();
-    btn.textContent = 'Sign In to Portal'; btn.disabled = false;
-    return;
+    enterApp(); btn.textContent = 'Authenticate & Enter Portal'; btn.disabled = false; return;
   }
 
   try {
     initSB();
     const { data, error } = await sbClient.auth.signInWithPassword({ email, password: pass });
-    if (error) { showAuthError('l-err', error.message); btn.textContent = 'Sign In to Portal'; btn.disabled = false; return; }
-
-    /* Fix 2.1 — role ONLY from user_metadata, never from dropdown */
+    if (error) { showAuthError('l-err', error.message); btn.textContent = 'Authenticate & Enter Portal'; btn.disabled = false; return; }
     const meta = data.user.user_metadata || {};
     const role = meta.role || 'cadet';
     currentUser = { email: data.user.email, role, name: meta.name || email.split('@')[0], cadet_id: meta.cadet_id || null, uid: data.user.id };
-
-    /* Fix 2.3 — persist role in sessionStorage to survive refresh */
     sessionStorage.setItem('smc_user', JSON.stringify(currentUser));
-
     await logAction('LOGIN', 'auth', data.user.id, `${currentUser.name} signed in`);
     enterApp();
   } catch(e) { showAuthError('l-err', 'Connection error. Please try again.'); }
-  btn.textContent = 'Sign In to Portal'; btn.disabled = false;
+  btn.textContent = 'Authenticate & Enter Portal'; btn.disabled = false;
 }
 
 async function handleForgot() {
@@ -1263,25 +1349,19 @@ async function handleLogout() {
   showLogin();
 }
 
-/* Fix 2.3 — restore session from Supabase AND sessionStorage fallback */
 async function checkSession() {
   if (IS_DEMO) return;
   initSB();
   const { data: { session } } = await sbClient.auth.getSession();
   if (session) {
     const meta = session.user.user_metadata || {};
-    currentUser = { email: session.user.email, role: meta.role || 'cadet',
-      name: meta.name || session.user.email.split('@')[0],
-      cadet_id: meta.cadet_id || null, uid: session.user.id };
+    currentUser = { email: session.user.email, role: meta.role || 'cadet', name: meta.name || session.user.email.split('@')[0], cadet_id: meta.cadet_id || null, uid: session.user.id };
     sessionStorage.setItem('smc_user', JSON.stringify(currentUser));
     await ensureUserProfile(currentUser);
     enterApp();
   } else {
-    /* Try sessionStorage fallback */
     const stored = sessionStorage.getItem('smc_user');
-    if (stored) {
-      try { currentUser = JSON.parse(stored); enterApp(); } catch(e) { sessionStorage.removeItem('smc_user'); }
-    }
+    if (stored) { try { currentUser = JSON.parse(stored); enterApp(); } catch(e) { sessionStorage.removeItem('smc_user'); } }
   }
 }
 
@@ -1291,24 +1371,14 @@ async function ensureUserProfile(user) {
     const { data, error } = await sbClient.from('user_profiles').select('id').eq('uid', user.uid).limit(1);
     if (error) { return; }
     if (!Array.isArray(data) || data.length === 0) {
-      await sbClient.from('user_profiles').insert([{
-        uid: user.uid,
-        name: user.name || user.email.split('@')[0],
-        email: user.email,
-        role: user.role || 'cadet',
-        cadet_id: user.cadet_id || null,
-        created: new Date().toISOString().split('T')[0]
-      }]);
+      await sbClient.from('user_profiles').insert([{ uid: user.uid, name: user.name || user.email.split('@')[0], email: user.email, role: user.role || 'cadet', cadet_id: user.cadet_id || null, created: new Date().toISOString().split('T')[0] }]);
       cacheInvalidate('user_profiles');
     }
-  } catch(e) {
-    console.warn('Could not ensure user profile', e);
-  }
+  } catch(e) { console.warn('Could not ensure user profile', e); }
 }
 
-/* Fix 4.3 — change password for logged-in user */
 async function changePassword() {
-  const pass    = document.getElementById('cp-pass').value;
+  const pass = document.getElementById('cp-pass').value;
   const confirm = document.getElementById('cp-confirm').value;
   if (!pass || pass.length < 6) { showToast('Password must be at least 6 characters.', 'error'); return; }
   if (pass !== confirm) { showToast('Passwords do not match.', 'error'); return; }
@@ -1316,11 +1386,7 @@ async function changePassword() {
   try {
     const { error } = await sbClient.auth.updateUser({ password: pass });
     if (error) showToast('Error: ' + error.message, 'error');
-    else {
-      showToast('Password updated successfully.', 'success');
-      document.getElementById('cp-pass').value = '';
-      document.getElementById('cp-confirm').value = '';
-    }
+    else { showToast('Password updated successfully.', 'success'); document.getElementById('cp-pass').value = ''; document.getElementById('cp-confirm').value = ''; }
   } catch(e) { showToast('Failed to update password.', 'error'); }
 }
 
@@ -1328,9 +1394,6 @@ function showLogin() { document.getElementById('login-screen').style.display = '
 function showForgot() { document.getElementById('login-screen').style.display = 'none'; document.getElementById('forgot-screen').style.display = 'flex'; }
 function showAuthError(id, msg) { const el = document.getElementById(id); el.textContent = msg; el.classList.add('show'); }
 
-/* ══════════════════════════════════════
-   APP INIT & ROLE UI
-══════════════════════════════════════ */
 function enterApp() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('forgot-screen').style.display = 'none';
@@ -1348,7 +1411,6 @@ function setupRoleUI() {
   const rp = document.getElementById('sb-role-pill');
   rp.textContent = cap(role);
   rp.className = 'role-pill role-' + role;
-
   document.querySelectorAll('[data-roles]').forEach(el => {
     const roles = el.getAttribute('data-roles').split(',');
     el.style.display = roles.includes(role) ? '' : 'none';
@@ -1357,38 +1419,15 @@ function setupRoleUI() {
     const roles = el.getAttribute('data-roles').split(',');
     el.style.display = roles.includes(role) ? '' : 'none';
   });
-  if (role === 'cadet' || role === 'instructor') {
-    document.getElementById('dash-stats-row').style.display = 'none';
-  }
-  /* Hide change password panel in demo */
-  if (IS_DEMO) {
-    const cpp = document.getElementById('change-password-panel');
-    if (cpp) cpp.style.display = 'none';
-  }
+  if (role === 'cadet' || role === 'instructor') document.getElementById('dash-stats-row').style.display = 'none';
+  if (IS_DEMO) { const cpp = document.getElementById('change-password-panel'); if (cpp) cpp.style.display = 'none'; }
 }
 
-/* ══════════════════════════════════════
-   MOBILE SIDEBAR — Fix 6.1
-══════════════════════════════════════ */
 function toggleSidebar() { document.body.classList.toggle('sidebar-open'); }
 function closeSidebar() { document.body.classList.remove('sidebar-open'); }
 
-/* ══════════════════════════════════════
-   NAVIGATION
-══════════════════════════════════════ */
-const PAGE_LABELS = {
-  dashboard:'Dashboard', cadets:'Cadet Roster', enroll:'Enroll Cadet',
-  courses:'Courses', grades:'Grading System', 'encode-grade':'Encode Grades',
-  reports:'Reports & Transcripts', violations:'Violations Log',
-  users:'User Management', audit:'Audit Log',
-  'my-grades':'My Grades', 'my-profile':'My Profile', settings:'Settings'
-};
-const ROLE_PAGES = {
-  administrator: ['dashboard','cadets','enroll','courses','grades','encode-grade','reports','violations','users','audit','settings'],
-  registrar:     ['dashboard','cadets','enroll','courses','grades','encode-grade','reports','violations'],
-  instructor:    ['dashboard','grades','encode-grade','my-profile'],
-  cadet:         ['dashboard','my-grades','my-profile'],
-};
+const PAGE_LABELS = { dashboard:'Dashboard', cadets:'Cadet Roster', enroll:'Enroll Cadet', courses:'Courses', grades:'Grading System', 'encode-grade':'Encode Grades', reports:'Reports & Transcripts', violations:'Violations Log', users:'User Management', audit:'Audit Log', 'my-grades':'My Grades', 'my-profile':'My Profile', settings:'Settings' };
+const ROLE_PAGES = { administrator:['dashboard','cadets','enroll','courses','grades','encode-grade','reports','violations','users','audit','settings'], registrar:['dashboard','cadets','enroll','courses','grades','encode-grade','reports','violations'], instructor:['dashboard','grades','encode-grade','my-profile'], cadet:['dashboard','my-grades','my-profile'] };
 
 function nav(page, navEl) {
   const allowed = ROLE_PAGES[currentUser?.role] || [];
@@ -1400,8 +1439,7 @@ function nav(page, navEl) {
   const pg = document.getElementById('page-' + page);
   if (pg) pg.classList.add('active');
   document.getElementById('bc-label').textContent = PAGE_LABELS[page] || page;
-  closeSidebar(); /* Fix 6.1 — close drawer on nav */
-
+  closeSidebar();
   if (page === 'cadets')       loadCadets();
   if (page === 'grades')       loadGrades();
   if (page === 'violations')   loadViolations();
@@ -1413,12 +1451,8 @@ function nav(page, navEl) {
   if (page === 'my-profile')   loadMyProfile();
 }
 
-/* ══════════════════════════════════════
-   DASHBOARD — Fix 3.8: Promise.allSettled
-══════════════════════════════════════ */
 async function loadDashboard() {
-  let cadets = DEMO_CADETS.length, grades = DEMO_GRADES.length,
-      viols = DEMO_VIOLATIONS.length, courses = DEMO_COURSES.length;
+  let cadets = DEMO_CADETS.length, grades = DEMO_GRADES.length, viols = DEMO_VIOLATIONS.length, courses = DEMO_COURSES.length;
   if (sbClient && !IS_DEMO) {
     const results = await Promise.allSettled([
       sbClient.from('cadets').select('*', { count:'exact', head:true }),
@@ -1431,15 +1465,12 @@ async function loadDashboard() {
     if (results[2].status === 'fulfilled' && results[2].value.count != null) viols   = results[2].value.count;
     if (results[3].status === 'fulfilled' && results[3].value.count != null) courses = results[3].value.count;
   }
-  setText('ds-cadets', cadets);   setText('ds-cadets-m', cadets);
+  setText('ds-cadets', cadets);  setText('ds-cadets-m', cadets);
   setText('ds-courses', courses); setText('ds-courses-m', courses);
   setText('ds2-cadets', cadets);  setText('ds2-viols', viols);
   setText('ds2-grades', grades);  setText('ds2-courses', courses);
 }
 
-/* ══════════════════════════════════════
-   FETCH HELPER — Fix 3.5
-══════════════════════════════════════ */
 async function fetchOrDemo(table, demoData, query) {
   if (!sbClient || IS_DEMO) return demoData;
   const cached = cacheGet(table);
@@ -1450,23 +1481,14 @@ async function fetchOrDemo(table, demoData, query) {
     if (error) throw error;
     cacheSet(table, data);
     return data;
-  } catch(e) {
-    console.error('Fetch error:', table, e);
-    return demoData;
-  }
+  } catch(e) { console.error('Fetch error:', table, e); return demoData; }
 }
 
-/* ══════════════════════════════════════
-   CADETS CRUD — Fix 3.1, 3.4
-══════════════════════════════════════ */
 async function loadCadets() {
   document.getElementById('cadet-tbody').innerHTML = '<tr class="loading-row"><td colspan="7"><span class="spinner"></span>Loading cadets…</td></tr>';
   const data = await fetchOrDemo('cadets', DEMO_CADETS, q => q.select('*').order('last_name'));
   const tbody = document.getElementById('cadet-tbody');
-  if (!data || !data.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="empty-state"><div class="ei">👥</div><p>No cadets enrolled yet.</p></td></tr>`;
-    return;
-  }
+  if (!data || !data.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><div class="ei">👥</div><p>No cadets enrolled yet.</p></td></tr>'; return; }
   tbody.innerHTML = data.map(c => {
     const safeId = encodeURIComponent(c.id);
     return `<tr data-search="${(c.last_name+' '+c.first_name+' '+c.cadet_id).toLowerCase()}">
@@ -1484,20 +1506,13 @@ async function loadCadets() {
 
 async function enrollCadet() {
   const id = v('e-id'), lname = v('e-lname'), fname = v('e-fname'), course = v('e-course');
-  /* Fix 5.2 — inline validation */
   let valid = true;
   if (!id)     { invalidate('e-id', 'e-id-err'); valid = false; } else clearValidation('e-id', 'e-id-err');
   if (!lname)  { invalidate('e-lname', 'e-lname-err'); valid = false; } else clearValidation('e-lname', 'e-lname-err');
   if (!fname)  { invalidate('e-fname', 'e-fname-err'); valid = false; } else clearValidation('e-fname', 'e-fname-err');
   if (!course) { invalidate('e-course', 'e-course-err'); valid = false; } else clearValidation('e-course', 'e-course-err');
   if (!valid) { showToast('Please fix the highlighted fields.', 'error'); return; }
-
-  const payload = {
-    cadet_id: id, last_name: lname, first_name: fname,
-    middle_name: v('e-mname'), gender: v('e-gender'), course,
-    year_level: v('e-year'), section: v('e-section'), status: v('e-status'),
-    notes: v('e-notes'), email: v('e-email') /* Fix 4.1 — email saved */
-  };
+  const payload = { cadet_id: id, last_name: lname, first_name: fname, middle_name: v('e-mname'), gender: v('e-gender'), course, year_level: v('e-year'), section: v('e-section'), status: v('e-status'), notes: v('e-notes'), email: v('e-email') };
   if (sbClient && !IS_DEMO) {
     const { error } = await sbClient.from('cadets').insert([payload]);
     if (error) { showToast('Error: ' + error.message, 'error'); return; }
@@ -1505,97 +1520,62 @@ async function enrollCadet() {
   } else { DEMO_CADETS.push({ ...payload, id: 'd' + Date.now() }); }
   await logAction('CREATE', 'cadets', payload.cadet_id, `Enrolled ${fname} ${lname}`);
   showToast('Cadet enrolled successfully.', 'success');
-  /* Fix 5.4 — clear form after submit */
   ['e-id','e-email','e-lname','e-fname','e-mname','e-section','e-notes'].forEach(id => setVal(id, ''));
   setVal('e-gender', ''); setVal('e-course', ''); setVal('e-year', '1st Year'); setVal('e-status', 'active');
   nav('cadets', null);
 }
 
-/* Fix 3.1 — unified edit that fetches from DB when connected */
 async function openEditCadetById(encodedId) {
   const id = decodeURIComponent(encodedId);
   let rec = null;
-  if (sbClient && !IS_DEMO) {
-    const { data } = await sbClient.from('cadets').select('*').eq('id', id).single();
-    rec = data;
-  } else {
-    rec = DEMO_CADETS.find(x => x.id === id);
-  }
+  if (sbClient && !IS_DEMO) { const { data } = await sbClient.from('cadets').select('*').eq('id', id).single(); rec = data; }
+  else { rec = DEMO_CADETS.find(x => x.id === id); }
   if (!rec) { showToast('Record not found.', 'error'); return; }
-  setVal('ec-id', id);
-  setVal('ec-cadet-id', rec.cadet_id || '');
-  setVal('ec-lname', rec.last_name || '');
-  setVal('ec-fname', rec.first_name || '');
-  setVal('ec-mname', rec.middle_name || '');
-  setVal('ec-gender', rec.gender || '');
-  setVal('ec-email', rec.email || '');
-  setVal('ec-course', rec.course || '');
-  setVal('ec-year', rec.year_level || '1st Year');
-  setVal('ec-section', rec.section || '');
-  setVal('ec-notes', rec.notes || '');
-  setVal('ec-status', rec.status || 'active');
+  setVal('ec-id', id); setVal('ec-cadet-id', rec.cadet_id || ''); setVal('ec-lname', rec.last_name || '');
+  setVal('ec-fname', rec.first_name || ''); setVal('ec-mname', rec.middle_name || ''); setVal('ec-gender', rec.gender || '');
+  setVal('ec-email', rec.email || ''); setVal('ec-course', rec.course || ''); setVal('ec-year', rec.year_level || '1st Year');
+  setVal('ec-section', rec.section || ''); setVal('ec-notes', rec.notes || ''); setVal('ec-status', rec.status || 'active');
   openModal('edit-cadet-modal');
 }
 
 async function updateCadet() {
   const id = v('ec-id');
-  const payload = {
-    last_name: v('ec-lname'), first_name: v('ec-fname'),
-    middle_name: v('ec-mname'), gender: v('ec-gender'), email: v('ec-email'),
-    course: v('ec-course'), year_level: v('ec-year'), section: v('ec-section'),
-    notes: v('ec-notes'), status: v('ec-status')
-  };
-  if (sbClient && !IS_DEMO) {
-    const { error } = await sbClient.from('cadets').update(payload).eq('id', id);
-    if (error) { showToast('Error: ' + error.message, 'error'); return; }
-    cacheInvalidate('cadets');
-  } else { const i = DEMO_CADETS.findIndex(x => x.id === id); if (i >= 0) Object.assign(DEMO_CADETS[i], payload); }
+  const payload = { last_name: v('ec-lname'), first_name: v('ec-fname'), middle_name: v('ec-mname'), gender: v('ec-gender'), email: v('ec-email'), course: v('ec-course'), year_level: v('ec-year'), section: v('ec-section'), notes: v('ec-notes'), status: v('ec-status') };
+  if (sbClient && !IS_DEMO) { const { error } = await sbClient.from('cadets').update(payload).eq('id', id); if (error) { showToast('Error: ' + error.message, 'error'); return; } cacheInvalidate('cadets'); }
+  else { const i = DEMO_CADETS.findIndex(x => x.id === id); if (i >= 0) Object.assign(DEMO_CADETS[i], payload); }
   await logAction('UPDATE', 'cadets', v('ec-cadet-id'), `Updated ${payload.first_name} ${payload.last_name}`);
   closeModal('edit-cadet-modal'); showToast('Cadet record updated.', 'success'); loadCadets();
 }
 
 async function deleteCadet(encodedId, cadetId) {
   const id = decodeURIComponent(encodedId);
-  if (sbClient && !IS_DEMO) {
-    const { error } = await sbClient.from('cadets').delete().eq('id', id);
-    if (error) { showToast('Error: ' + error.message, 'error'); return; }
-    cacheInvalidate('cadets');
-  } else { const i = DEMO_CADETS.findIndex(x => x.id === id); if (i >= 0) DEMO_CADETS.splice(i, 1); }
+  if (sbClient && !IS_DEMO) { const { error } = await sbClient.from('cadets').delete().eq('id', id); if (error) { showToast('Error: ' + error.message, 'error'); return; } cacheInvalidate('cadets'); }
+  else { const i = DEMO_CADETS.findIndex(x => x.id === id); if (i >= 0) DEMO_CADETS.splice(i, 1); }
   await logAction('DELETE', 'cadets', cadetId, 'Cadet record deleted');
   closeModal('confirm-modal'); showToast('Cadet deleted.', 'success'); loadCadets(); loadDashboard();
 }
 
-/* ══════════════════════════════════════
-   COURSES CRUD
-══════════════════════════════════════ */
 async function loadCourses() {
   document.getElementById('course-tbody').innerHTML = '<tr class="loading-row"><td colspan="7"><span class="spinner"></span>Loading…</td></tr>';
   const data = await fetchOrDemo('courses', DEMO_COURSES);
   const tbody = document.getElementById('course-tbody');
   tbody.innerHTML = data.map(c => {
     const safeId = encodeURIComponent(c.id);
-    return `<tr>
-      <td class="td-mono">${esc(c.code)}</td><td>${esc(c.title)}</td>
-      <td class="td-mono">${c.units}</td><td>${esc(c.instructor||'—')}</td>
-      <td class="td-mono">${c.enrolled||0}</td><td>${sBadge(c.status)}</td>
+    return `<tr><td class="td-mono">${esc(c.code)}</td><td>${esc(c.title)}</td><td class="td-mono">${c.units}</td><td>${esc(c.instructor||'—')}</td><td class="td-mono">${c.enrolled||0}</td><td>${sBadge(c.status)}</td>
       <td><div class="td-actions">
         <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" onclick="openEditCourse('${safeId}')">Edit</button>
         <button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="confirmDelete('Delete course ${esc(c.code)}?','',()=>deleteCourse('${safeId}','${esc(c.code)}'))">Delete</button>
-      </div></td>
-    </tr>`;
+      </div></td></tr>`;
   }).join('');
 }
 
 async function openEditCourse(encodedId) {
   const id = decodeURIComponent(encodedId);
   let c = null;
-  if (sbClient && !IS_DEMO) {
-    const { data } = await sbClient.from('courses').select('*').eq('id', id).single();
-    c = data;
-  } else { c = DEMO_COURSES.find(x => x.id === id); }
+  if (sbClient && !IS_DEMO) { const { data } = await sbClient.from('courses').select('*').eq('id', id).single(); c = data; }
+  else { c = DEMO_COURSES.find(x => x.id === id); }
   if (!c) return;
-  setVal('cm-id', id); setVal('cm-code', c.code); setVal('cm-title', c.title);
-  setVal('cm-units', c.units); setVal('cm-instructor', c.instructor || ''); setVal('cm-status', c.status);
+  setVal('cm-id', id); setVal('cm-code', c.code); setVal('cm-title', c.title); setVal('cm-units', c.units); setVal('cm-instructor', c.instructor || ''); setVal('cm-status', c.status);
   document.getElementById('course-modal-title').textContent = 'Edit Course';
   openModal('course-modal');
 }
@@ -1604,8 +1584,7 @@ function clearCourseForm() { setVal('cm-id',''); setVal('cm-code',''); setVal('c
 
 async function saveCourse() {
   const id = v('cm-id');
-  const payload = { code: v('cm-code').toUpperCase(), title: v('cm-title'),
-    units: parseInt(v('cm-units')) || 3, instructor: v('cm-instructor'), status: v('cm-status') };
+  const payload = { code: v('cm-code').toUpperCase(), title: v('cm-title'), units: parseInt(v('cm-units')) || 3, instructor: v('cm-instructor'), status: v('cm-status') };
   if (!payload.code || !payload.title) { showToast('Course code and title required.', 'error'); return; }
   if (sbClient && !IS_DEMO) {
     if (id) { const { error } = await sbClient.from('courses').update(payload).eq('id', id); if (error) { showToast('Error: ' + error.message, 'error'); return; } }
@@ -1621,20 +1600,13 @@ async function saveCourse() {
 
 async function deleteCourse(encodedId, code) {
   const id = decodeURIComponent(encodedId);
-  if (sbClient && !IS_DEMO) {
-    const { error } = await sbClient.from('courses').delete().eq('id', id);
-    if (error) { showToast('Error: ' + error.message, 'error'); return; }
-    cacheInvalidate('courses');
-  } else { const i = DEMO_COURSES.findIndex(x => x.id === id); if (i >= 0) DEMO_COURSES.splice(i, 1); }
+  if (sbClient && !IS_DEMO) { const { error } = await sbClient.from('courses').delete().eq('id', id); if (error) { showToast('Error: ' + error.message, 'error'); return; } cacheInvalidate('courses'); }
+  else { const i = DEMO_COURSES.findIndex(x => x.id === id); if (i >= 0) DEMO_COURSES.splice(i, 1); }
   await logAction('DELETE', 'courses', code, 'Course deleted');
   closeModal('confirm-modal'); showToast('Course deleted.', 'success'); loadCourses();
 }
 
-/* ══════════════════════════════════════
-   GRADES CRUD — Fix 3.3, 4.5, 5.3
-══════════════════════════════════════ */
 let _gradesData = [];
-
 async function loadGrades() {
   document.getElementById('grade-tbody').innerHTML = '<tr class="loading-row"><td colspan="11"><span class="spinner"></span>Loading grades…</td></tr>';
   _gradesData = await fetchOrDemo('grades', DEMO_GRADES, q => q.select('*').order('cadet_id'));
@@ -1644,10 +1616,7 @@ async function loadGrades() {
 
 function renderGrades(data) {
   const tbody = document.getElementById('grade-tbody');
-  if (!data || !data.length) {
-    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:32px">No grade records found.</td></tr>';
-    return;
-  }
+  if (!data || !data.length) { tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:32px">No grade records found.</td></tr>'; return; }
   tbody.innerHTML = data.map(g => {
     const safeId = encodeURIComponent(g.id);
     return `<tr data-search="${(g.name+' '+g.cadet_id+' '+g.course+' '+(g.term||'')+' '+(g.sy||'')).toLowerCase()}" data-term="${g.term||''}" data-sy="${g.sy||''}">
@@ -1668,17 +1637,13 @@ function renderGrades(data) {
   }).join('');
 }
 
-/* Fix 4.5 — SY filter chips populated dynamically */
 function buildSYFilters(data) {
   const sySet = new Set(data.map(g => g.sy).filter(Boolean));
   const container = document.getElementById('grade-sy-filters');
-  const allBtn = container.querySelector('.filter-chip');
-  /* Clear old chips */
   [...container.querySelectorAll('.filter-chip:not(:first-child)')].forEach(el => el.remove());
   sySet.forEach(sy => {
     const btn = document.createElement('button');
-    btn.className = 'filter-chip';
-    btn.textContent = sy;
+    btn.className = 'filter-chip'; btn.textContent = sy;
     btn.onclick = function() { setSYFilter(this, sy); };
     container.appendChild(btn);
   });
@@ -1687,26 +1652,17 @@ function buildSYFilters(data) {
 function setSYFilter(el, sy) {
   document.querySelectorAll('#grade-sy-filters .filter-chip').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
-  document.querySelectorAll('#grade-tbody tr').forEach(tr => {
-    const trSY = tr.dataset.sy || '';
-    tr.style.display = (sy === 'all' || trSY === sy) ? '' : 'none';
-  });
+  document.querySelectorAll('#grade-tbody tr').forEach(tr => { const trSY = tr.dataset.sy || ''; tr.style.display = (sy === 'all' || trSY === sy) ? '' : 'none'; });
 }
 
 async function loadEncodeDropdowns() {
-  const [cadets, courses] = await Promise.all([
-    fetchOrDemo('cadets', DEMO_CADETS, q => q.select('*').order('last_name')),
-    fetchOrDemo('courses', DEMO_COURSES),
-  ]);
+  const [cadets, courses] = await Promise.all([fetchOrDemo('cadets', DEMO_CADETS, q => q.select('*').order('last_name')), fetchOrDemo('courses', DEMO_COURSES)]);
   const cs = document.getElementById('g-cadet');
-  cs.innerHTML = '<option value="">— Select Cadet —</option>' + cadets.map(c =>
-    `<option value="${esc(c.cadet_id)}">${esc(c.last_name)}, ${esc(c.first_name)} (${esc(c.cadet_id)})</option>`).join('');
+  cs.innerHTML = '<option value="">— Select Cadet —</option>' + cadets.map(c => `<option value="${esc(c.cadet_id)}">${esc(c.last_name)}, ${esc(c.first_name)} (${esc(c.cadet_id)})</option>`).join('');
   const crs = document.getElementById('g-course');
-  crs.innerHTML = '<option value="">— Select Course —</option>' + courses.map(c =>
-    `<option value="${esc(c.code)}">${esc(c.code)} — ${esc(c.title)}</option>`).join('');
+  crs.innerHTML = '<option value="">— Select Course —</option>' + courses.map(c => `<option value="${esc(c.code)}">${esc(c.code)} — ${esc(c.title)}</option>`).join('');
 }
 
-/* Fix 5.3 — only compute if at least one field filled; show partial note */
 function computeGrade() {
   const pRaw = v('g-prelim'), mRaw = v('g-midterm'), fRaw = v('g-final');
   const p = parseFloat(pRaw), m = parseFloat(mRaw), f = parseFloat(fRaw);
@@ -1728,22 +1684,13 @@ async function saveGrade() {
   if (!cadetId)   { invalidate('g-cadet', 'g-cadet-err'); valid = false; } else clearValidation('g-cadet', 'g-cadet-err');
   if (!courseCode) { invalidate('g-course', 'g-course-err'); valid = false; } else clearValidation('g-course', 'g-course-err');
   if (!valid) { showToast('Please fix the highlighted fields.', 'error'); return; }
-
   const cadetList = await fetchOrDemo('cadets', DEMO_CADETS);
   const cadet = cadetList.find(c => c.cadet_id === cadetId) || { first_name: '', last_name: cadetId };
   const p = parseFloat(v('g-prelim')), m = parseFloat(v('g-midterm')), f = parseFloat(v('g-final'));
   const computed = parseFloat(((isNaN(p)?0:p)*.3 + (isNaN(m)?0:m)*.3 + (isNaN(f)?0:f)*.4).toFixed(2));
-  const payload = {
-    cadet_id: cadetId, name: `${cadet.last_name}, ${cadet.first_name}`,
-    course: courseCode, term: v('g-term'), sy: v('g-sy'),
-    prelim: isNaN(p)?null:p, midterm: isNaN(m)?null:m, final_grade: isNaN(f)?null:f,
-    computed, remarks: v('g-remarks'), encoded_by: currentUser?.email
-  };
-  if (sbClient && !IS_DEMO) {
-    const { error } = await sbClient.from('grades').insert([payload]);
-    if (error) { showToast('Error: ' + error.message, 'error'); return; }
-    cacheInvalidate('grades');
-  } else { DEMO_GRADES.push({ ...payload, id: 'g' + Date.now() }); }
+  const payload = { cadet_id: cadetId, name: `${cadet.last_name}, ${cadet.first_name}`, course: courseCode, term: v('g-term'), sy: v('g-sy'), prelim: isNaN(p)?null:p, midterm: isNaN(m)?null:m, final_grade: isNaN(f)?null:f, computed, remarks: v('g-remarks'), encoded_by: currentUser?.email };
+  if (sbClient && !IS_DEMO) { const { error } = await sbClient.from('grades').insert([payload]); if (error) { showToast('Error: ' + error.message, 'error'); return; } cacheInvalidate('grades'); }
+  else { DEMO_GRADES.push({ ...payload, id: 'g' + Date.now() }); }
   await logAction('CREATE', 'grades', cadetId, `Grade encoded for ${cadetId} — ${courseCode}`);
   showToast('Grade saved.', 'success'); nav('grades', null);
 }
@@ -1751,10 +1698,8 @@ async function saveGrade() {
 async function openEditGrade(encodedId) {
   const id = decodeURIComponent(encodedId);
   let g = null;
-  if (sbClient && !IS_DEMO) {
-    const { data } = await sbClient.from('grades').select('*').eq('id', id).single();
-    g = data;
-  } else { g = DEMO_GRADES.find(x => x.id === id); }
+  if (sbClient && !IS_DEMO) { const { data } = await sbClient.from('grades').select('*').eq('id', id).single(); g = data; }
+  else { g = DEMO_GRADES.find(x => x.id === id); }
   if (!g) return;
   setVal('eg-id', id); setVal('eg-prelim', g.prelim ?? ''); setVal('eg-midterm', g.midterm ?? '');
   setVal('eg-final', g.final_grade ?? ''); setVal('eg-computed', (g.computed ?? '') + '%'); setVal('eg-remarks', g.remarks || '');
@@ -1766,51 +1711,33 @@ async function updateGrade() {
   const p = parseFloat(v('eg-prelim')), m = parseFloat(v('eg-midterm')), f = parseFloat(v('eg-final'));
   const computed = parseFloat(((isNaN(p)?0:p)*.3 + (isNaN(m)?0:m)*.3 + (isNaN(f)?0:f)*.4).toFixed(2));
   const payload = { prelim: isNaN(p)?null:p, midterm: isNaN(m)?null:m, final_grade: isNaN(f)?null:f, computed, remarks: v('eg-remarks') };
-  if (sbClient && !IS_DEMO) {
-    const { error } = await sbClient.from('grades').update(payload).eq('id', id);
-    if (error) { showToast('Error: ' + error.message, 'error'); return; }
-    cacheInvalidate('grades');
-  } else { const i = DEMO_GRADES.findIndex(x => x.id === id); if (i >= 0) Object.assign(DEMO_GRADES[i], payload); }
+  if (sbClient && !IS_DEMO) { const { error } = await sbClient.from('grades').update(payload).eq('id', id); if (error) { showToast('Error: ' + error.message, 'error'); return; } cacheInvalidate('grades'); }
+  else { const i = DEMO_GRADES.findIndex(x => x.id === id); if (i >= 0) Object.assign(DEMO_GRADES[i], payload); }
   await logAction('UPDATE', 'grades', id, 'Grade record updated');
   closeModal('edit-grade-modal'); showToast('Grade updated.', 'success'); loadGrades();
 }
 
 async function deleteGrade(encodedId, cadetId) {
   const id = decodeURIComponent(encodedId);
-  if (sbClient && !IS_DEMO) {
-    const { error } = await sbClient.from('grades').delete().eq('id', id);
-    if (error) { showToast('Error: ' + error.message, 'error'); return; }
-    cacheInvalidate('grades');
-  } else { const i = DEMO_GRADES.findIndex(x => x.id === id); if (i >= 0) DEMO_GRADES.splice(i, 1); }
+  if (sbClient && !IS_DEMO) { const { error } = await sbClient.from('grades').delete().eq('id', id); if (error) { showToast('Error: ' + error.message, 'error'); return; } cacheInvalidate('grades'); }
+  else { const i = DEMO_GRADES.findIndex(x => x.id === id); if (i >= 0) DEMO_GRADES.splice(i, 1); }
   await logAction('DELETE', 'grades', cadetId, 'Grade record deleted');
   closeModal('confirm-modal'); showToast('Grade deleted.', 'success'); loadGrades();
 }
 
-/* Fix 3.3 — filters target specific tbody by ID */
 function setGradeFilter(el, term, tbodyId) {
-  /* Only deactivate chips in the same filter group */
   const parent = el.closest('.grade-filters, div');
   if (parent) parent.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
-  document.querySelectorAll(`#${tbodyId} tr`).forEach(tr => {
-    const txt = tr.textContent.toLowerCase();
-    tr.style.display = (term === 'all' || txt.includes(term)) ? '' : 'none';
-  });
+  document.querySelectorAll(`#${tbodyId} tr`).forEach(tr => { const txt = tr.textContent.toLowerCase(); tr.style.display = (term === 'all' || txt.includes(term)) ? '' : 'none'; });
 }
 
-/* Fix 4.6 — violations tier filter */
 function setViolFilter(el, status) {
   el.closest('.grade-filters').querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
-  document.querySelectorAll('#viol-tbody tr').forEach(tr => {
-    const txt = tr.textContent.toLowerCase();
-    tr.style.display = (status === 'all' || txt.includes(status)) ? '' : 'none';
-  });
+  document.querySelectorAll('#viol-tbody tr').forEach(tr => { const txt = tr.textContent.toLowerCase(); tr.style.display = (status === 'all' || txt.includes(status)) ? '' : 'none'; });
 }
 
-/* ══════════════════════════════════════
-   VIOLATIONS CRUD — Fix 3.2
-══════════════════════════════════════ */
 async function loadViolations() {
   document.getElementById('viol-tbody').innerHTML = '<tr class="loading-row"><td colspan="8"><span class="spinner"></span>Loading…</td></tr>';
   const data = await fetchOrDemo('violations', DEMO_VIOLATIONS, q => q.select('*').order('date', { ascending: false }));
@@ -1821,13 +1748,12 @@ async function loadViolations() {
       <td class="td-mono">${esc(vr.date)}</td><td class="td-mono">${esc(vr.cadet_id)}</td>
       <td>${esc(vr.name||'—')}</td><td>${esc(vr.type)}</td>
       <td>${tierBadge(vr.tier)}</td><td>${sBadge(vr.status?.toLowerCase())}</td>
-      <td style="color:var(--slate);font-size:12px">${esc(vr.logged_by||'—')}</td>
+      <td style="color:var(--silver);font-size:12px">${esc(vr.logged_by||'—')}</td>
       <td><button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="confirmDelete('Delete this violation record?','',()=>deleteViolation('${safeId}','${esc(vr.cadet_id)}'))">Delete</button></td>
     </tr>`;
   }).join('');
 }
 
-/* Fix 5.6 — open violation modal with today's date pre-filled */
 function openViolModal() {
   editingViolId = null;
   document.getElementById('vm-date').value = new Date().toISOString().split('T')[0];
@@ -1838,129 +1764,69 @@ function openViolModal() {
 async function populateCadetDropdown(selectId) {
   const cadets = await fetchOrDemo('cadets', DEMO_CADETS, q => q.select('*').order('last_name'));
   const sel = document.getElementById(selectId);
-  sel.innerHTML = '<option value="">— Select Cadet —</option>' + cadets.map(c =>
-    `<option value="${esc(c.cadet_id)}">${esc(c.last_name)}, ${esc(c.first_name)} (${esc(c.cadet_id)})</option>`).join('');
+  sel.innerHTML = '<option value="">— Select Cadet —</option>' + cadets.map(c => `<option value="${esc(c.cadet_id)}">${esc(c.last_name)}, ${esc(c.first_name)} (${esc(c.cadet_id)})</option>`).join('');
 }
 
-/* Fix 3.2 — violation tier counts from Supabase when connected */
 async function saveViolation() {
   const cadetId = v('vm-cadet');
   if (!cadetId) { invalidate('vm-cadet', 'vm-cadet-err'); showToast('Please select a cadet.', 'error'); return; }
   clearValidation('vm-cadet', 'vm-cadet-err');
-
   const cadetList = await fetchOrDemo('cadets', DEMO_CADETS);
   const cadet = cadetList.find(c => c.cadet_id === cadetId) || { last_name: cadetId, first_name: '' };
-
-  /* Fix 3.2 — query actual count from Supabase, not demo data */
   let existingCount = 0;
-  if (sbClient && !IS_DEMO) {
-    const { count } = await sbClient.from('violations').select('*', { count: 'exact', head: true }).eq('cadet_id', cadetId);
-    existingCount = count || 0;
-  } else {
-    existingCount = DEMO_VIOLATIONS.filter(x => x.cadet_id === cadetId).length;
-  }
+  if (sbClient && !IS_DEMO) { const { count } = await sbClient.from('violations').select('*', { count: 'exact', head: true }).eq('cadet_id', cadetId); existingCount = count || 0; }
+  else { existingCount = DEMO_VIOLATIONS.filter(x => x.cadet_id === cadetId).length; }
   const tier = existingCount + 1;
   const status = tier === 1 ? 'Warning' : tier === 2 ? 'Probation' : 'Suspension';
-
-  const payload = {
-    cadet_id: cadetId, name: `${cadet.last_name}, ${cadet.first_name}`,
-    date: v('vm-date') || new Date().toISOString().split('T')[0],
-    type: v('vm-type'), notes: v('vm-notes'),
-    logged_by: currentUser?.email || 'Admin', tier, status
-  };
-  if (sbClient && !IS_DEMO) {
-    const { error } = await sbClient.from('violations').insert([payload]);
-    if (error) { showToast('Error: ' + error.message, 'error'); return; }
-    cacheInvalidate('violations');
-  } else { DEMO_VIOLATIONS.push({ ...payload, id: 'v' + Date.now() }); }
+  const payload = { cadet_id: cadetId, name: `${cadet.last_name}, ${cadet.first_name}`, date: v('vm-date') || new Date().toISOString().split('T')[0], type: v('vm-type'), notes: v('vm-notes'), logged_by: currentUser?.email || 'Admin', tier, status };
+  if (sbClient && !IS_DEMO) { const { error } = await sbClient.from('violations').insert([payload]); if (error) { showToast('Error: ' + error.message, 'error'); return; } cacheInvalidate('violations'); }
+  else { DEMO_VIOLATIONS.push({ ...payload, id: 'v' + Date.now() }); }
   await logAction('CREATE', 'violations', cadetId, `Violation logged: ${payload.type} — Tier ${tier}`);
   closeModal('viol-modal'); showToast(`Violation logged. Status: ${status}`, 'success'); loadViolations(); loadDashboard();
 }
 
 async function deleteViolation(encodedId, cadetId) {
   const id = decodeURIComponent(encodedId);
-  if (sbClient && !IS_DEMO) {
-    const { error } = await sbClient.from('violations').delete().eq('id', id);
-    if (error) { showToast('Error: ' + error.message, 'error'); return; }
-    cacheInvalidate('violations');
-  } else { const i = DEMO_VIOLATIONS.findIndex(x => x.id === id); if (i >= 0) DEMO_VIOLATIONS.splice(i, 1); }
+  if (sbClient && !IS_DEMO) { const { error } = await sbClient.from('violations').delete().eq('id', id); if (error) { showToast('Error: ' + error.message, 'error'); return; } cacheInvalidate('violations'); }
+  else { const i = DEMO_VIOLATIONS.findIndex(x => x.id === id); if (i >= 0) DEMO_VIOLATIONS.splice(i, 1); }
   await logAction('DELETE', 'violations', cadetId, 'Violation record deleted');
   closeModal('confirm-modal'); showToast('Violation deleted.', 'success'); loadViolations();
 }
 
-/* ══════════════════════════════════════
-   USER MANAGEMENT — Fix 2.2: uses signUp
-══════════════════════════════════════ */
 async function loadUsers() {
   document.getElementById('user-tbody').innerHTML = '<tr class="loading-row"><td colspan="6"><span class="spinner"></span>Loading…</td></tr>';
   const data = await fetchOrDemo('user_profiles', DEMO_USERS);
   const tbody = document.getElementById('user-tbody');
   tbody.innerHTML = data.map(u => {
     const safeId = encodeURIComponent(u.id);
-    return `<tr>
-      <td><strong>${esc(u.name)}</strong></td><td class="td-mono">${esc(u.email)}</td>
-      <td>${roleBadge(u.role)}</td><td class="td-mono">${u.cadet_id||'—'}</td>
-      <td class="td-mono" style="font-size:11px">${u.created||'—'}</td>
-      <td><div class="td-actions">
-        ${u.id !== 'u1' ? `<button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="confirmDelete('Delete account for ${esc(u.email)}?','They will lose portal access.',()=>deleteUser('${safeId}','${esc(u.email)}'))">Delete</button>` : '<span style="color:var(--muted);font-size:11px">Protected</span>'}
-      </div></td>
+    return `<tr><td><strong>${esc(u.name)}</strong></td><td class="td-mono">${esc(u.email)}</td><td>${roleBadge(u.role)}</td><td class="td-mono">${u.cadet_id||'—'}</td><td class="td-mono" style="font-size:11px">${u.created||'—'}</td>
+      <td><div class="td-actions">${u.id !== 'u1' ? `<button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="confirmDelete('Delete account for ${esc(u.email)}?','They will lose portal access.',()=>deleteUser('${safeId}','${esc(u.email)}'))">Delete</button>` : '<span style="color:var(--muted);font-size:11px">Protected</span>'}</div></td>
     </tr>`;
   }).join('');
 }
 
-/* Fix 2.2 — use signUp instead of admin.createUser */
 async function saveUser() {
-  const name = v('um-name'), email = v('um-email'), role = v('um-role'), pass = v('um-pass');
-  const cadetId = v('um-cadet-id');
+  const name = v('um-name'), email = v('um-email'), role = v('um-role'), pass = v('um-pass'), cadetId = v('um-cadet-id');
   if (!name || !email || !pass) { showToast('Name, email, and password are required.', 'error'); return; }
   if (pass.length < 6) { showToast('Password must be at least 6 characters.', 'error'); return; }
-
   if (sbClient && !IS_DEMO) {
-    /* Use signUp — works with anon key. Email confirmation may be sent. */
-    const { data, error } = await sbClient.auth.signUp({
-      email, password: pass,
-      options: { data: { name, role, cadet_id: cadetId || null } }
-    });
+    const { data, error } = await sbClient.auth.signUp({ email, password: pass, options: { data: { name, role, cadet_id: cadetId || null } } });
     if (error) { showToast('Error: ' + error.message, 'error', 6000); return; }
-
-    if (!data?.session) {
-      showToast('Auth user created. Verify your email before first login.', 'success', 8000);
-      closeModal('user-modal');
-      loadUsers();
-      return;
-    }
-
+    if (!data?.session) { showToast('Auth user created. Verify your email before first login.', 'success', 8000); closeModal('user-modal'); loadUsers(); return; }
     const authUser = data.session.user || data.user;
-    if (!authUser?.id) {
-      showToast('Auth user created, but no valid session was returned.', 'error', 8000);
-      return;
-    }
-
-    /* Also insert into user_profiles for easy query */
-    const profileInsert = await sbClient.from('user_profiles').insert([{
-      uid: authUser.id, name, email, role,
-      cadet_id: cadetId || null,
-      created: new Date().toISOString().split('T')[0]
-    }]);
-    if (profileInsert.error) {
-      showToast('User created but profile save failed: ' + profileInsert.error.message, 'error', 6000);
-    } else {
-      cacheInvalidate('user_profiles');
-    }
-  } else {
-    DEMO_USERS.push({ id: 'u' + Date.now(), name, email, role, cadet_id: cadetId || null, created: new Date().toISOString().split('T')[0] });
-  }
+    if (!authUser?.id) { showToast('Auth user created, but no valid session was returned.', 'error', 8000); return; }
+    const profileInsert = await sbClient.from('user_profiles').insert([{ uid: authUser.id, name, email, role, cadet_id: cadetId || null, created: new Date().toISOString().split('T')[0] }]);
+    if (profileInsert.error) { showToast('User created but profile save failed: ' + profileInsert.error.message, 'error', 6000); }
+    else { cacheInvalidate('user_profiles'); }
+  } else { DEMO_USERS.push({ id: 'u' + Date.now(), name, email, role, cadet_id: cadetId || null, created: new Date().toISOString().split('T')[0] }); }
   await logAction('CREATE', 'users', email, `Created account: ${name} (${role})`);
   closeModal('user-modal'); showToast('User account created. They may need to verify their email.', 'success', 6000); loadUsers();
 }
 
 async function deleteUser(encodedId, email) {
   const id = decodeURIComponent(encodedId);
-  if (sbClient && !IS_DEMO) {
-    await sbClient.from('user_profiles').delete().eq('id', id);
-    /* Note: Deleting auth.users requires service role key — profile only is deleted here */
-    cacheInvalidate('user_profiles');
-  } else { const i = DEMO_USERS.findIndex(x => x.id === id); if (i >= 0) DEMO_USERS.splice(i, 1); }
+  if (sbClient && !IS_DEMO) { await sbClient.from('user_profiles').delete().eq('id', id); cacheInvalidate('user_profiles'); }
+  else { const i = DEMO_USERS.findIndex(x => x.id === id); if (i >= 0) DEMO_USERS.splice(i, 1); }
   await logAction('DELETE', 'users', email, 'User account deleted');
   closeModal('confirm-modal'); showToast('User account deleted.', 'success'); loadUsers();
 }
@@ -1971,80 +1837,50 @@ function toggleCadetField() {
   if (role === 'cadet') populateCadetDropdown('um-cadet-id');
 }
 
-/* ══════════════════════════════════════
-   AUDIT LOG — Fix 3.6
-══════════════════════════════════════ */
 async function loadAudit() {
   document.getElementById('audit-tbody').innerHTML = '<tr class="loading-row"><td colspan="6"><span class="spinner"></span>Loading…</td></tr>';
   let data = DEMO_AUDIT;
-  if (sbClient && !IS_DEMO) {
-    try {
-      const { data: r } = await sbClient.from('audit_log').select('*').order('created_at', { ascending: false }).limit(200);
-      if (r) data = r;
-    } catch(e) {}
-  }
+  if (sbClient && !IS_DEMO) { try { const { data: r } = await sbClient.from('audit_log').select('*').order('created_at', { ascending: false }).limit(200); if (r) data = r; } catch(e) {} }
   const tbody = document.getElementById('audit-tbody');
   if (!data.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">No audit entries yet.</td></tr>'; return; }
-  tbody.innerHTML = data.map(a => `
-    <tr data-search="${(a.action+' '+a.table_name+' '+a.performed_by+' '+(a.details||'')).toLowerCase()}">
-      <td class="td-mono" style="font-size:11px">${a.created_at ? new Intl.DateTimeFormat('en-PH',{dateStyle:'medium',timeStyle:'short'}).format(new Date(a.created_at)) : a.timestamp||'—'}</td>
-      <td><span class="audit-action audit-${(a.action||'').toLowerCase()}">${esc(a.action||'—')}</span></td>
-      <td class="td-mono">${esc(a.table_name||'—')}</td>
-      <td class="td-mono">${esc(a.record_id||'—')}</td>
-      <td style="color:var(--slate);font-size:12px;max-width:200px">${esc(a.details||'—')}</td>
-      <td style="font-size:12px">${esc(a.performed_by||'—')}</td>
-    </tr>`).join('');
+  tbody.innerHTML = data.map(a => `<tr data-search="${(a.action+' '+a.table_name+' '+a.performed_by+' '+(a.details||'')).toLowerCase()}">
+    <td class="td-mono" style="font-size:11px">${a.created_at ? new Intl.DateTimeFormat('en-PH',{dateStyle:'medium',timeStyle:'short'}).format(new Date(a.created_at)) : a.timestamp||'—'}</td>
+    <td><span class="audit-action audit-${(a.action||'').toLowerCase()}">${esc(a.action||'—')}</span></td>
+    <td class="td-mono">${esc(a.table_name||'—')}</td>
+    <td class="td-mono">${esc(a.record_id||'—')}</td>
+    <td style="color:var(--silver);font-size:12px;max-width:200px">${esc(a.details||'—')}</td>
+    <td style="font-size:12px">${esc(a.performed_by||'—')}</td>
+  </tr>`).join('');
 }
 
-/* Fix 3.6 — cap DEMO_AUDIT at 100; Fix 5.10 — use locale-independent format */
 async function logAction(action, table, recordId, details) {
-  const entry = {
-    action, table_name: table, record_id: String(recordId || ''), details,
-    performed_by: currentUser?.email || 'system',
-    created_at: new Date().toISOString(),
-    timestamp: new Intl.DateTimeFormat('en-PH', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date())
-  };
+  const entry = { action, table_name: table, record_id: String(recordId || ''), details, performed_by: currentUser?.email || 'system', created_at: new Date().toISOString(), timestamp: new Intl.DateTimeFormat('en-PH', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date()) };
   DEMO_AUDIT.unshift(entry);
-  if (DEMO_AUDIT.length > 100) DEMO_AUDIT.splice(100); /* Fix 3.6 */
-  if (sbClient && !IS_DEMO) {
-    try { await sbClient.from('audit_log').insert([entry]); } catch(e) {}
-  }
+  if (DEMO_AUDIT.length > 100) DEMO_AUDIT.splice(100);
+  if (sbClient && !IS_DEMO) { try { await sbClient.from('audit_log').insert([entry]); } catch(e) {} }
 }
 
-/* ══════════════════════════════════════
-   MY GRADES — Fix 3.11
-══════════════════════════════════════ */
 async function loadMyGrades() {
   const cadetId = currentUser?.cadet_id;
-  /* Fix 3.11 — show empty state if no cadet_id linked */
-  if (!cadetId) {
-    document.getElementById('my-grade-tbody').innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px">No cadet ID linked to your account. Contact the registrar.</td></tr>`;
-    return;
-  }
+  if (!cadetId) { document.getElementById('my-grade-tbody').innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px">No cadet ID linked to your account. Contact the registrar.</td></tr>'; return; }
   document.getElementById('my-grades-title').textContent = `My Grades — ${cadetId}`;
   document.getElementById('my-grade-tbody').innerHTML = '<tr class="loading-row"><td colspan="8"><span class="spinner"></span>Loading…</td></tr>';
   let data = DEMO_GRADES.filter(g => g.cadet_id === cadetId);
-  if (sbClient && !IS_DEMO) {
-    try { const { data: r } = await sbClient.from('grades').select('*').eq('cadet_id', cadetId); if (r) data = r; } catch(e) {}
-  }
+  if (sbClient && !IS_DEMO) { try { const { data: r } = await sbClient.from('grades').select('*').eq('cadet_id', cadetId); if (r) data = r; } catch(e) {} }
   const tbody = document.getElementById('my-grade-tbody');
   if (!data.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px">No grade records found.</td></tr>'; return; }
-  tbody.innerHTML = data.map(g => `
-    <tr data-search="${(g.course+' '+(g.term||'')).toLowerCase()}" data-term="${g.term||''}">
-      <td class="td-mono">${esc(g.course)}</td>
-      <td><span class="badge badge-gray">${cap(g.term||'—')}</span></td>
-      <td class="td-mono">${esc(g.sy||'—')}</td>
-      <td class="grade-cell ${gClass(g.prelim)}">${g.prelim??'—'}</td>
-      <td class="grade-cell ${gClass(g.midterm)}">${g.midterm??'—'}</td>
-      <td class="grade-cell ${gClass(g.final_grade)}">${g.final_grade??'—'}</td>
-      <td class="grade-cell ${gClass(g.computed)}" style="font-weight:700">${g.computed!=null?g.computed+'%':'—'}</td>
-      <td>${rBadge(g.remarks)}</td>
-    </tr>`).join('');
+  tbody.innerHTML = data.map(g => `<tr data-search="${(g.course+' '+(g.term||'')).toLowerCase()}" data-term="${g.term||''}">
+    <td class="td-mono">${esc(g.course)}</td>
+    <td><span class="badge badge-gray">${cap(g.term||'—')}</span></td>
+    <td class="td-mono">${esc(g.sy||'—')}</td>
+    <td class="grade-cell ${gClass(g.prelim)}">${g.prelim??'—'}</td>
+    <td class="grade-cell ${gClass(g.midterm)}">${g.midterm??'—'}</td>
+    <td class="grade-cell ${gClass(g.final_grade)}">${g.final_grade??'—'}</td>
+    <td class="grade-cell ${gClass(g.computed)}" style="font-weight:700">${g.computed!=null?g.computed+'%':'—'}</td>
+    <td>${rBadge(g.remarks)}</td>
+  </tr>`).join('');
 }
 
-/* ══════════════════════════════════════
-   MY PROFILE
-══════════════════════════════════════ */
 async function loadMyProfile() {
   const role = currentUser?.role;
   const initials = (currentUser?.name || 'AU').substring(0, 2).toUpperCase();
@@ -2055,28 +1891,20 @@ async function loadMyProfile() {
   if (role === 'cadet' && currentUser?.cadet_id) {
     const cadetId = currentUser.cadet_id;
     let cadet = DEMO_CADETS.find(c => c.cadet_id === cadetId) || {};
-    if (sbClient && !IS_DEMO) {
-      const { data } = await sbClient.from('cadets').select('*').eq('cadet_id', cadetId).single();
-      if (data) cadet = data;
-    }
-    infoHTML = `
-      <div class="profile-info-item"><label>Cadet ID</label><span>${esc(cadet.cadet_id||cadetId)}</span></div>
+    if (sbClient && !IS_DEMO) { const { data } = await sbClient.from('cadets').select('*').eq('cadet_id', cadetId).single(); if (data) cadet = data; }
+    infoHTML = `<div class="profile-info-item"><label>Cadet ID</label><span>${esc(cadet.cadet_id||cadetId)}</span></div>
       <div class="profile-info-item"><label>Course</label><span>${esc(cadet.course||'—')}</span></div>
       <div class="profile-info-item"><label>Year Level</label><span>${esc(cadet.year_level||'—')}</span></div>
       <div class="profile-info-item"><label>Section</label><span>${esc(cadet.section||'—')}</span></div>
       <div class="profile-info-item"><label>Status</label><span>${sBadge(cadet.status||'active')}</span></div>
       <div class="profile-info-item"><label>Email</label><span>${esc(currentUser.email)}</span></div>`;
   } else {
-    infoHTML = `
-      <div class="profile-info-item"><label>Email</label><span>${esc(currentUser?.email||'—')}</span></div>
+    infoHTML = `<div class="profile-info-item"><label>Email</label><span>${esc(currentUser?.email||'—')}</span></div>
       <div class="profile-info-item"><label>Role</label><span>${cap(role)}</span></div>`;
   }
   document.getElementById('prof-info').innerHTML = infoHTML;
 }
 
-/* ══════════════════════════════════════
-   REPORTS — Fix 3.5: proper async/await
-══════════════════════════════════════ */
 async function generateReport(type) {
   const area = document.getElementById('report-area');
   const title = document.getElementById('report-title');
@@ -2086,44 +1914,35 @@ async function generateReport(type) {
   const now = new Date().toLocaleDateString('en-PH');
   const hdr = `<div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid var(--border)">
     <div style="font-size:28px">🎖️</div>
-    <div><h2 style="font-family:'Libre Baskerville',serif;font-size:18px">SMC — Records & Grading System</h2>
-    <p style="font-size:12px;color:var(--slate)">Generated: ${now} · Printed by: ${esc(currentUser?.email)}</p></div></div>`;
-
+    <div><h2 style="font-family:'Cinzel',serif;font-size:18px">SMC — Records &amp; Grading System</h2>
+    <p style="font-size:12px;color:var(--silver)">Generated: ${now} · Printed by: ${esc(currentUser?.email)}</p></div></div>`;
   let data, html = '';
-
   if (type === 'grades') {
     title.textContent = 'Grade Report';
     data = await fetchOrDemo('grades', DEMO_GRADES);
     html = hdr + `<div class="table-wrap"><table><thead><tr><th>Cadet ID</th><th>Name</th><th>Course</th><th>Term</th><th>SY</th><th>Prelim</th><th>Midterm</th><th>Final</th><th>Computed</th><th>Remarks</th></tr></thead><tbody>
       ${data.map(g => `<tr><td>${esc(g.cadet_id)}</td><td>${esc(g.name||'—')}</td><td>${esc(g.course)}</td><td>${cap(g.term)}</td><td>${esc(g.sy||'—')}</td><td>${g.prelim??'—'}</td><td>${g.midterm??'—'}</td><td>${g.final_grade??'—'}</td><td>${g.computed!=null?g.computed+'%':'—'}</td><td>${esc(g.remarks||'—')}</td></tr>`).join('')}
     </tbody></table></div>`;
-
   } else if (type === 'enrollment') {
     title.textContent = 'Enrollment Report';
     data = await fetchOrDemo('cadets', DEMO_CADETS, q => q.select('*').order('last_name'));
     html = hdr + `<div class="table-wrap"><table><thead><tr><th>Cadet ID</th><th>Name</th><th>Course</th><th>Year</th><th>Section</th><th>Status</th></tr></thead><tbody>
       ${data.map(c => `<tr><td>${esc(c.cadet_id)}</td><td>${esc(c.last_name)}, ${esc(c.first_name)}</td><td>${esc(c.course||'—')}</td><td>${esc(c.year_level||'—')}</td><td>${esc(c.section||'—')}</td><td>${esc(c.status||'—')}</td></tr>`).join('')}
     </tbody></table></div>`;
-
   } else if (type === 'violations') {
     title.textContent = 'Violations Summary';
     data = await fetchOrDemo('violations', DEMO_VIOLATIONS, q => q.select('*').order('date', { ascending: false }));
     html = hdr + `<div class="table-wrap"><table><thead><tr><th>Date</th><th>Cadet ID</th><th>Name</th><th>Type</th><th>Tier</th><th>Status</th></tr></thead><tbody>
       ${data.map(vr => `<tr><td>${esc(vr.date)}</td><td>${esc(vr.cadet_id)}</td><td>${esc(vr.name||'—')}</td><td>${esc(vr.type)}</td><td>Tier ${vr.tier}</td><td>${esc(vr.status)}</td></tr>`).join('')}
     </tbody></table></div>`;
-
   } else if (type === 'transcript') {
     title.textContent = 'Transcript of Records';
-    const [grades, cadets] = await Promise.all([
-      fetchOrDemo('grades', DEMO_GRADES),
-      fetchOrDemo('cadets', DEMO_CADETS),
-    ]);
+    const [grades, cadets] = await Promise.all([fetchOrDemo('grades', DEMO_GRADES), fetchOrDemo('cadets', DEMO_CADETS)]);
     const cadetIds = [...new Set(grades.map(g => g.cadet_id))];
     html = hdr + cadetIds.map(cid => {
       const cGrades = grades.filter(g => g.cadet_id === cid);
-      /* Fix 3.5 — use fetched cadets, not hardcoded DEMO_CADETS */
       const cadet = cadets.find(c => c.cadet_id === cid) || {};
-      return `<h3 style="margin:20px 0 8px;font-family:'Libre Baskerville',serif">${esc(cadet.last_name||'')}${cadet.last_name?', ':''}${esc(cadet.first_name||cid)} — ${esc(cid)}</h3>
+      return `<h3 style="margin:20px 0 8px;font-family:'Cinzel',serif">${esc(cadet.last_name||'')}${cadet.last_name?', ':''} ${esc(cadet.first_name||cid)} — ${esc(cid)}</h3>
         <div class="table-wrap"><table><thead><tr><th>Course</th><th>Term</th><th>SY</th><th>Prelim</th><th>Midterm</th><th>Final</th><th>Computed</th><th>Remarks</th></tr></thead><tbody>
         ${cGrades.map(g => `<tr><td>${esc(g.course)}</td><td>${cap(g.term)}</td><td>${esc(g.sy||'—')}</td><td>${g.prelim??'—'}</td><td>${g.midterm??'—'}</td><td>${g.final_grade??'—'}</td><td>${g.computed!=null?g.computed+'%':'—'}</td><td>${esc(g.remarks||'—')}</td></tr>`).join('')}
         </tbody></table></div>`;
@@ -2133,50 +1952,23 @@ async function generateReport(type) {
   area.scrollIntoView({ behavior: 'smooth' });
 }
 
-/* ══════════════════════════════════════
-   UTILS
-══════════════════════════════════════ */
 function v(id) { return document.getElementById(id)?.value || ''; }
 function setVal(id, val) { const el = document.getElementById(id); if (el) el.value = val ?? ''; }
 function setText(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
 function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
-/* XSS escape helper */
 function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
 function filterTbl(tbodyId, q) {
   const ql = q.toLowerCase();
-  document.querySelectorAll(`#${tbodyId} tr`).forEach(tr => {
-    const txt = tr.dataset.search || tr.textContent.toLowerCase();
-    tr.style.display = txt.includes(ql) ? '' : 'none';
-  });
+  document.querySelectorAll(`#${tbodyId} tr`).forEach(tr => { const txt = tr.dataset.search || tr.textContent.toLowerCase(); tr.style.display = txt.includes(ql) ? '' : 'none'; });
 }
-
-/* Fix 5.2 — inline validation helpers */
-function invalidate(inputId, errId) {
-  const el = document.getElementById(inputId);
-  const er = document.getElementById(errId);
-  if (el) el.classList.add('invalid');
-  if (er) er.classList.add('show');
-}
-function clearValidation(inputId, errId) {
-  const el = document.getElementById(inputId);
-  const er = document.getElementById(errId);
-  if (el) el.classList.remove('invalid');
-  if (er) er.classList.remove('show');
-}
-
-function openModal(id) {
-  const m = document.getElementById(id);
-  if (m) m.classList.add('open');
-}
+function invalidate(inputId, errId) { const el = document.getElementById(inputId); const er = document.getElementById(errId); if (el) el.classList.add('invalid'); if (er) er.classList.add('show'); }
+function clearValidation(inputId, errId) { const el = document.getElementById(inputId); const er = document.getElementById(errId); if (el) el.classList.remove('invalid'); if (er) er.classList.remove('show'); }
+function openModal(id) { const m = document.getElementById(id); if (m) m.classList.add('open'); }
 function closeModal(id) { const m = document.getElementById(id); if (m) m.classList.remove('open'); }
-document.querySelectorAll('.modal-overlay').forEach(el => {
-  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
-});
+document.querySelectorAll('.modal-overlay').forEach(el => { el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); }); });
 
 function sBadge(s) {
-  const map = { active:'badge-green', irregular:'badge-gold', 'on-leave':'badge-gray', dropped:'badge-red',
-    warning:'badge-gold', probation:'badge-red', suspension:'badge-red', inactive:'badge-gray' };
+  const map = { active:'badge-green', irregular:'badge-gold', 'on-leave':'badge-gray', dropped:'badge-red', warning:'badge-gold', probation:'badge-red', suspension:'badge-red', inactive:'badge-gray' };
   return `<span class="badge ${map[(s||'').toLowerCase()]||'badge-gray'}">${cap(s||'—')}</span>`;
 }
 function roleBadge(r) {
@@ -2200,7 +1992,6 @@ function gClass(vv) {
   return 'grade-f';
 }
 
-/* Fix 5.9 — toast with duration param */
 let toastTimer;
 function showToast(msg, type = 'success', duration) {
   const dur = duration || (type === 'error' ? 6000 : 3400);
@@ -2217,9 +2008,8 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
 });
 
-/* ── BOOT ── */
 initSB();
 checkSession();
 </script>
 </body>
-<
+</html>
